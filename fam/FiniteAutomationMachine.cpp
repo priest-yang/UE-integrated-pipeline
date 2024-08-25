@@ -364,54 +364,66 @@ public:
 
 
 
+
 class FiniteAutomationMachine {
+private:
     std::unique_ptr<FiniteAutomationState> current_state;
     std::unique_ptr<FiniteAutomationState> next_state;
     std::vector<bool> errorFlag;
+    std::vector<bool> default_error_flag;
     std::string S_prev;
 
 public:
-    FiniteAutomationMachine(Features initial_features, int error_flag_size = 3) {
-        // Initialize with ErrorState or another starting state as necessary
-        current_state = std::make_unique<ErrorState>(initial_features);
-        next_state = nullptr;
-        S_prev = "Error";
+    // Constructor
+    FiniteAutomationMachine(const Features& features = Features(), int error_flag_size = 3, 
+                            std::unique_ptr<FiniteAutomationState> initial_state = std::make_unique<ErrorState>(Features()))
+        : current_state(std::move(initial_state)), S_prev("Error") {
 
-        // Initialize error flags based on the size specified
+        // Initialize error flags
         if (error_flag_size < 2) {
-            errorFlag = std::vector<bool>(error_flag_size, true);
+            default_error_flag.assign(error_flag_size, true);
         } else {
-            errorFlag = std::vector<bool>(2, true);
-            errorFlag.insert(errorFlag.end(), error_flag_size - 2, false);
+            default_error_flag.assign(2, true);
+            default_error_flag.insert(default_error_flag.end(), error_flag_size - 2, false);
+        }
+        errorFlag = default_error_flag;
+    }
+
+    // Run function
+    void run(const Features& features, std::unique_ptr<FiniteAutomationState> new_state = nullptr) {
+        if (new_state) {
+            current_state = std::move(new_state);
+        }
+
+        current_state->update_features(features);
+        auto [next, probability] = current_state->transition();
+        next_state.reset(next);
+
+        if (probability > 0.8) {
+            current_state = std::move(next_state);
+        }
+
+        // Check whether the constraints are satisfied
+        bool constraints_satisfied = current_state->check(features);
+        errorFlag.erase(errorFlag.begin());
+        errorFlag.push_back(constraints_satisfied);
+
+        // If constraints are not satisfied for past 3 times, move to ErrorState
+        if (!anyOf(errorFlag) && !errorFlag.empty()) {
+            S_prev = current_state->name;  // Assuming `getName()` method exists in FiniteAutomationState
+            current_state = std::make_unique<ErrorState>(Features(), S_prev);
+            errorFlag = default_error_flag;
         }
     }
 
-    void run(const Features& features) {
-        if (current_state) {
-            current_state->update_features(features);
-            auto result = current_state->transition();
-            next_state.reset(result.first);
-            double probability = result.second;
-
-            if (probability > 0.8) {
-                current_state = std::move(next_state);
-            }
-
-            // Check constraints of the current state with updated features
-            bool constraints_satisfied = current_state->check(current_state->features);
-            errorFlag.erase(errorFlag.begin());
-            errorFlag.push_back(constraints_satisfied);
-
-            // Check if constraints have not been satisfied for the past N checks
-            if (!anyOf(errorFlag) && !errorFlag.empty()) {
-                S_prev = current_state->name;
-                current_state = std::make_unique<ErrorState>(Features{}, S_prev);
-                std::fill(errorFlag.begin(), errorFlag.end(), true);  // Reset error flags
-            }
-        }
+    std::string FiniteAutomationMachine::getCurrentStateName() const {
+    if (current_state) {
+        return current_state->name;  // Assuming `getName()` method exists in FiniteAutomationState
+    }
+    return "Unknown";  // Return a default value if the current state is not set
     }
 
-private:
+    private:
     bool anyOf(const std::vector<bool>& flags) {
         for (bool flag : flags) {
             if (flag) return true;

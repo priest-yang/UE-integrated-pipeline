@@ -6,7 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
-
+#include <memory>
 
 // Constants
 #include <cmath>  // Include this for math constants and functions
@@ -80,6 +80,56 @@ struct Features {
     double User_X;
     double User_Y;
     int TimestampID;
+    std::string state;
+
+//     // Maps field names to setter functions
+    std::unordered_map<std::string, std::function<void(const std::string&)>> setters;
+
+    Features() {
+        setters["User_speed_X"] = [this](const std::string& val) { User_speed_X = std::stod(val); };
+        setters["User_speed_Y"] = [this](const std::string& val) { User_speed_Y = std::stod(val); };
+        setters["User_speed"] = [this](const std::string& val) { User_speed = std::stod(val); };
+        setters["User_velocity_X"] = [this](const std::string& val) { User_velocity_X = std::stod(val); };
+        setters["User_velocity_Y"] = [this](const std::string& val) { User_velocity_Y = std::stod(val); };
+        setters["Wait_time"] = [this](const std::string& val) { Wait_time = std::stod(val); };
+        setters["intent_to_cross"] = [this](const std::string& val) { intent_to_cross = val == "True"; };
+        setters["Gazing_station"] = [this](const std::string& val) { Gazing_station = std::stoi(val); };
+        setters["possible_interaction"] = [this](const std::string& val) { possible_interaction = val == "True"; };
+        setters["facing_along_sidewalk"] = [this](const std::string& val) { facing_along_sidewalk = val == "True"; };
+        setters["facing_to_road"] = [this](const std::string& val) { facing_to_road = val == "True"; };
+        setters["On_sidewalks"] = [this](const std::string& val) { On_sidewalks = val == "True"; };
+        setters["On_road"] = [this](const std::string& val) { On_road = val == "True"; };
+        setters["closest_station"] = [this](const std::string& val) { closest_station = std::stoi(val); };
+        setters["distance_to_closest_station"] = [this](const std::string& val) { distance_to_closest_station = std::stod(val); };
+        setters["distance_to_closest_station_X"] = [this](const std::string& val) { distance_to_closest_station_X = std::stod(val); };
+        setters["distance_to_closest_station_Y"] = [this](const std::string& val) { distance_to_closest_station_Y = std::stod(val); };
+        setters["looking_at_AGV"] = [this](const std::string& val) { looking_at_AGV = val == "True"; };
+        setters["start_station_X"] = [this](const std::string& val) { start_station_X = std::stod(val); };
+        setters["start_station_Y"] = [this](const std::string& val) { start_station_Y = std::stod(val); };
+        setters["end_station_X"] = [this](const std::string& val) { end_station_X = std::stod(val); };
+        setters["end_station_Y"] = [this](const std::string& val) { end_station_Y = std::stod(val); };
+        setters["distance_from_start_station_X"] = [this](const std::string& val) { distance_from_start_station_X = std::stod(val); };
+        setters["distance_from_start_station_Y"] = [this](const std::string& val) { distance_from_start_station_Y = std::stod(val); };
+        setters["distance_from_end_station_X"] = [this](const std::string& val) { distance_from_end_station_X = std::stod(val); };
+        setters["distance_from_end_station_Y"] = [this](const std::string& val) { distance_from_end_station_Y = std::stod(val); };
+        setters["facing_start_station"] = [this](const std::string& val) { facing_start_station = val == "True"; };
+        setters["facing_end_station"] = [this](const std::string& val) { facing_end_station = val == "True"; };
+        setters["looking_at_closest_station"] = [this](const std::string& val) { looking_at_closest_station = val == "True"; };
+        setters["GazeDirection_X"] = [this](const std::string& val) { GazeDirection_X = std::stod(val); };
+        setters["GazeDirection_Y"] = [this](const std::string& val) { GazeDirection_Y = std::stod(val); };
+        setters["AGV_X"] = [this](const std::string& val) { AGV_X = std::stod(val); };
+        setters["AGV_Y"] = [this](const std::string& val) { AGV_Y = std::stod(val); };
+        setters["User_X"] = [this](const std::string& val) { User_X = std::stod(val); };
+        setters["User_Y"] = [this](const std::string& val) { User_Y = std::stod(val); };
+        setters["TimestampID"] = [this](const std::string& val) { TimestampID = std::stoi(val); };
+        setters["state"] = [this](const std::string& val) { state = val; };
+    }
+
+    void setField(const std::string& name, const std::string& value) {
+        if (setters.find(name) != setters.end()) {
+            setters[name](value);
+        }
+    }
 };
 
 // Base class for finite automation states
@@ -154,13 +204,23 @@ public:
 
 // Finite state machine controller
 class FiniteAutomationMachine {
-    FiniteAutomationState* current_state;
-    FiniteAutomationState* next_state;
+private:
+    std::unique_ptr<FiniteAutomationState> current_state;
+    std::unique_ptr<FiniteAutomationState> next_state;
+    std::vector<bool> errorFlag;
+    std::vector<bool> default_error_flag;
+    std::string S_prev;
 
 public:
-    FiniteAutomationMachine(FiniteAutomationState* initial_state);
-    ~FiniteAutomationMachine();
-    void run(const Features& features);
-};
+    // Constructor
+    FiniteAutomationMachine(const Features& features = Features(), int error_flag_size = 3, 
+                            std::unique_ptr<FiniteAutomationState> initial_state = std::make_unique<ErrorState>(Features()));
 
+    // Destructor
+    ~FiniteAutomationMachine() = default;
+
+    // Run function
+    void run(const Features& features, std::unique_ptr<FiniteAutomationState> new_state = nullptr);
+    std::string getCurrentStateName() const;
+};
 #endif // FINITE_STATE_MACHINE_HPP
