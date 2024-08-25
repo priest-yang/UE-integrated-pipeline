@@ -1,8 +1,8 @@
 
-tra_pred_model/demo/*
+
 tra_pred_model/libtorch/*
 !tra_pred_model/libtorch/README.md
-!tra_pred_model/demo/0.csv
+
 
 .DS_Store
 data/PandasData/Modified/*
@@ -12,6 +12,14 @@ data/PandasData/Predicted/*
 data/PandasData/Sampled_state/*
 data/Plots
 data/*.pkl
+
+data/demo/raw*
+data/demo/feature_fam/*
+data/demo/feature_model/*
+!data/demo/raw/0.csv
+!data/demo/feature_fam/0.csv
+!data/demo/feature_model/0.csv
+
 
 !data/PandasData/Modified/PID001_NSL.pkl
 !data/PandasData/Original/PID001_NSL.csv
