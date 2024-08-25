@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <memory>
 
+#include <sstream>
+#include <functional>
+
 // Constants
 #include <cmath>  // Include this for math constants and functions
 
@@ -153,6 +156,7 @@ class ErrorState : public FiniteAutomationState {
 
 public:
     ErrorState(const Features& features, const std::string& S_prev = "Error");
+    ErrorState(const std::string& S_prev = "Error");
     void initializeMLE();
     static bool check(const Features& features);
     std::pair<FiniteAutomationState*, double> transition() override;
@@ -213,7 +217,7 @@ private:
 
 public:
     // Constructor
-    FiniteAutomationMachine(const Features& features = Features(), int error_flag_size = 3, 
+    FiniteAutomationMachine(const Features& features, int error_flag_size = 3, 
                             std::unique_ptr<FiniteAutomationState> initial_state = std::make_unique<ErrorState>(Features()));
 
     // Destructor

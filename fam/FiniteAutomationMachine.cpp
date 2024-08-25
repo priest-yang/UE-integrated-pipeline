@@ -1,10 +1,12 @@
+#ifndef FINITE_STATE_MACHINE_HPP
+#define FINITE_STATE_MACHINE_HPP
 #include <iostream>
 #include <string>
 #include <vector>
 #include <algorithm>
 #include <cassert>
 #include <memory>
-#include <FiniteAutomationMachine.hpp>
+#include "FiniteAutomationMachine.hpp"
 
 class FiniteAutomationState {
 public:
@@ -30,6 +32,12 @@ public:
     ErrorState(const Features& features, const std::string& S_prev = "Error") {
         name = "Error";
         this->features = features;
+        this->S_prev = S_prev;
+        initializeMLE();
+    }
+
+    ErrorState(const std::string& S_prev = "Error") {
+        name = "Error";
         this->S_prev = S_prev;
         initializeMLE();
     }
@@ -375,8 +383,8 @@ private:
 
 public:
     // Constructor
-    FiniteAutomationMachine(const Features& features = Features(), int error_flag_size = 3, 
-                            std::unique_ptr<FiniteAutomationState> initial_state = std::make_unique<ErrorState>(Features()))
+    FiniteAutomationMachine(const Features& features, int error_flag_size = 3, 
+                            std::unique_ptr<FiniteAutomationState> initial_state = std::make_unique<ErrorState>())
         : current_state(std::move(initial_state)), S_prev("Error") {
 
         // Initialize error flags
@@ -411,7 +419,7 @@ public:
         // If constraints are not satisfied for past 3 times, move to ErrorState
         if (!anyOf(errorFlag) && !errorFlag.empty()) {
             S_prev = current_state->name;  // Assuming `getName()` method exists in FiniteAutomationState
-            current_state = std::make_unique<ErrorState>(Features(), S_prev);
+            current_state = std::make_unique<ErrorState>(features, S_prev);
             errorFlag = default_error_flag;
         }
     }
@@ -431,3 +439,5 @@ public:
         return false;
     }
 };
+
+#endif
