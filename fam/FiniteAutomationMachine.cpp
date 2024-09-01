@@ -1,5 +1,3 @@
-#ifndef FINITE_STATE_MACHINE_HPP
-#define FINITE_STATE_MACHINE_HPP
 #include <iostream>
 #include <string>
 #include <vector>
@@ -8,41 +6,21 @@
 #include <memory>
 #include "FiniteAutomationMachine.hpp"
 
-class FiniteAutomationState {
-public:
-    std::string name;
-    Features features;
-    bool constraints_satisfied = false;
-    FiniteAutomationState* next_state = nullptr;
 
-    static bool check(const Features& features);
-    virtual std::pair<FiniteAutomationState*, double> transition() = 0;
+ErrorState::ErrorState(const Features& features, const std::string& S_prev) {
+    name = "Error";
+    this->features = features;
+    this->S_prev = S_prev;
+    initializeMLE();
+}
 
-    void update_features(const Features& new_features) {
-        features = new_features;
-    }
-};
-
-
-class ErrorState : public FiniteAutomationState {
-    std::string S_prev;
-    std::unordered_map<std::string, std::vector<double>> MLE;
-
-public:
-    ErrorState(const Features& features, const std::string& S_prev = "Error") {
-        name = "Error";
-        this->features = features;
-        this->S_prev = S_prev;
-        initializeMLE();
-    }
-
-    ErrorState(const std::string& S_prev = "Error") {
+ErrorState::ErrorState(const std::string& S_prev) {
         name = "Error";
         this->S_prev = S_prev;
         initializeMLE();
     }
 
-    void initializeMLE() {
+void ErrorState::initializeMLE() {
         // Initialize the MLE table manually as C++ doesn't support DataFrame directly
         MLE["Wait"] = {0.022282, 0.805907, 0.087452, 0.015152, 0.000000, 0.0075};
         MLE["At Station"] = {0.950089, 0.018987, 0.000000, 0.000000, 0.252874, 0.0000};
@@ -52,22 +30,18 @@ public:
         MLE["Cross"] = {0.000000, 0.040084, 0.262357, 0.850168, 0.000000, 0.0025};
     }
 
-    static bool check(const Features& features) {
-        // This state always returns true for the check
-        return true;
-    }
 
-    std::pair<FiniteAutomationState*, double> transition() override {
+    std::pair<FiniteAutomationState*, double> ErrorState::transition() {
         // Simulating the transition logic based on provided features and previous state
         std::vector<std::pair<std::string, double>> Q;
 
         // Assuming these check functions are static and correctly defined in respective classes
-        if (AtStationState::check(features)) Q.push_back({"At Station", MLE["At Station"][0]});
-        if (WaitingState::check(features)) Q.push_back({"Wait", MLE["Wait"][0]});
-        if (CrossingState::check(features)) Q.push_back({"Cross", MLE["Cross"][0]});
-        if (ApproachingSidewalkState::check(features)) Q.push_back({"Approach Sidewalk", MLE["Approach Sidewalk"][0]});
-        if (MovingAlongSidewalkState::check(features)) Q.push_back({"Move Along Sidewalk", MLE["Move Along Sidewalk"][0]});
-        if (ApproachingStationState::check(features)) Q.push_back({"Approach Target Station", MLE["Approach Target Station"][0]});
+        if (AtStationState::mycheck(features)) Q.push_back({"At Station", MLE["At Station"][0]});
+        if (WaitingState::mycheck(features)) Q.push_back({"Wait", MLE["Wait"][0]});
+        if (CrossingState::mycheck(features)) Q.push_back({"Cross", MLE["Cross"][0]});
+        if (ApproachingSidewalkState::mycheck(features)) Q.push_back({"Approach Sidewalk", MLE["Approach Sidewalk"][0]});
+        if (MovingAlongSidewalkState::mycheck(features)) Q.push_back({"Move Along Sidewalk", MLE["Move Along Sidewalk"][0]});
+        if (ApproachingStationState::mycheck(features)) Q.push_back({"Approach Target Station", MLE["Approach Target Station"][0]});
 
         if (Q.empty()) {
             return {this, 1.0};
@@ -82,7 +56,7 @@ public:
         }
     }
 
-    FiniteAutomationState* getStateByName(const std::string& name, const Features& features) {
+    FiniteAutomationState* ErrorState::getStateByName(const std::string& name, const Features& features) {
         // You need to implement a factory or similar to construct states by name
         if (name == "At Station") return new AtStationState(features);
         if (name == "Wait") return new WaitingState(features);
@@ -92,33 +66,28 @@ public:
         if (name == "Approach Target Station") return new ApproachingStationState(features);
         return this; // Default return to self, should be improved
     }
-};
 
 
 
-class AtStationState : public FiniteAutomationState {
-public:
-    AtStationState(const Features& features) {
+
+    AtStationState::AtStationState(const Features& features) {
         name = "At Station";
         this->features = features;
     }
 
-    static bool check(const Features& features) {
-        // Constraint 1: Be stationary
-        bool stationary = std::abs(features.User_speed) <= WALK_STAY_THRESHOLD * 2;
+// static bool AtStationState::check(const Features& features) {
+//     // Constraint 1: Be stationary
+//     bool stationary = std::abs(features.User_speed) <= WALK_STAY_THRESHOLD * 2;
+//     // Constraint 2: Be within a small distance of the station
+//     bool near_station_X = features.distance_to_closest_station_X < CLOSE_TO_STATION_THRESHOLD_X * 200;
+//     bool near_station_Y = features.distance_to_closest_station_Y < CLOSE_TO_STATION_THRESHOLD_Y * 200;
+//     bool near_station = near_station_X && near_station_Y;
+//     // Constraint 3: Not be on the road
+//     bool on_road = features.On_road;
+//     return stationary && near_station && !on_road;
+// }
 
-        // Constraint 2: Be within a small distance of the station
-        bool near_station_X = features.distance_to_closest_station_X < CLOSE_TO_STATION_THRESHOLD_X * 200;
-        bool near_station_Y = features.distance_to_closest_station_Y < CLOSE_TO_STATION_THRESHOLD_Y * 200;
-        bool near_station = near_station_X && near_station_Y;
-
-        // Constraint 3: Not be on the road
-        bool on_road = features.On_road;
-
-        return stationary && near_station && !on_road;
-    }
-
-    std::pair<FiniteAutomationState*, double> transition() override {
+    std::pair<FiniteAutomationState*, double> AtStationState::transition(){
         // AtStation -> ApproachingSidewalkState or WaitingState
         if (std::abs(features.User_speed) > WALK_STAY_THRESHOLD &&
             (features.On_sidewalks || features.facing_along_sidewalk)) {
@@ -133,17 +102,16 @@ public:
             return {this, 1.0};
         }
     }
-};
 
 
-class WaitingState : public FiniteAutomationState {
-public:
-    WaitingState(const Features& features) {
+
+
+    WaitingState::WaitingState(const Features& features) {
         name = "Wait";
         this->features = features;
     }
 
-    static bool check(const Features& features) {
+    bool WaitingState::check(const Features& features) {
         // Check based on the speed and various interaction possibilities
         bool is_stationary = std::abs(features.User_speed) <= WALK_STAY_THRESHOLD;
         bool is_interactive = features.possible_interaction || features.looking_at_AGV || features.On_road;
@@ -151,7 +119,8 @@ public:
         return is_stationary && is_interactive;
     }
 
-    std::pair<FiniteAutomationState*, double> transition() override {
+
+    std::pair<FiniteAutomationState*, double> WaitingState::transition()  {
         // Determine the next state based on the current feature conditions
 
         // WaitingState -> CrossingState
@@ -177,17 +146,16 @@ public:
         // Stay in the WaitingState if no conditions are met
         return {this, 1.0};
     }
-};
 
 
-class CrossingState : public FiniteAutomationState {
-public:
-    CrossingState(const Features& features) {
+
+
+    CrossingState::CrossingState(const Features& features) {
         name = "Cross";
         this->features = features;
     }
 
-    static bool check(const Features& features) {
+    bool CrossingState::check(const Features& features) {
         // Check for movement in the Y direction and if on the road, including gazing considerations
         bool moving = std::abs(features.User_speed_Y) > WALK_STAY_THRESHOLD;
         bool on_road = features.On_road;
@@ -197,7 +165,7 @@ public:
         return moving && on_road && (looking_at_road || looking_at_agv);
     }
 
-    std::pair<FiniteAutomationState*, double> transition() override {
+    std::pair<FiniteAutomationState*, double> CrossingState::transition(){
         // Determine the next state based on the current features
 
         // CrossingState -> MovingAlongSidewalkState
@@ -236,18 +204,17 @@ public:
         // Stay in the CrossingState if no conditions are met
         return {this, 1.0};
     }
-};
 
 
 
-class ApproachingSidewalkState : public FiniteAutomationState {
-public:
-    ApproachingSidewalkState(const Features& features) {
+
+
+    ApproachingSidewalkState::ApproachingSidewalkState(const Features& features) {
         name = "Approach Sidewalk";
         this->features = features;
     }
 
-    static bool check(const Features& features) {
+    bool ApproachingSidewalkState::check(const Features& features) {
         // Check for proximity to station and movement constraints
         bool near_start_station = std::abs(features.distance_to_closest_station_Y) <= CLOSE_TO_STATION_THRESHOLD_Y * 100 * 2;
         bool moving = features.User_speed_Y > WALK_STAY_THRESHOLD * 0.3;
@@ -255,7 +222,7 @@ public:
         return near_start_station && moving && !features.On_road;
     }
 
-    std::pair<FiniteAutomationState*, double> transition() override {
+    std::pair<FiniteAutomationState*, double> ApproachingSidewalkState::transition()  {
         // Determine the next state based on the current features
 
         bool near_station_X = features.distance_to_closest_station_X < CLOSE_TO_STATION_THRESHOLD_X * 100;
@@ -287,18 +254,16 @@ public:
         // Stay in the ApproachingSidewalkState if no conditions are met
         return {this, 1.0};
     }
-};
 
 
 
-class MovingAlongSidewalkState : public FiniteAutomationState {
-public:
-    MovingAlongSidewalkState(const Features& features) {
+
+    MovingAlongSidewalkState::MovingAlongSidewalkState(const Features& features) {
         name = "Move Along Sidewalk";
         this->features = features;
     }
 
-    static bool check(const Features& features) {
+    bool MovingAlongSidewalkState::check(const Features& features) {
         // Check for movement along the sidewalk within constraints
         bool moving = features.User_speed_X > WALK_STAY_THRESHOLD * 0.8;
         bool within_sidewalk = features.distance_from_start_station_Y < 500 + MARGIN_NEAR_SIDEWALKS * 100;
@@ -307,7 +272,7 @@ public:
         return within_sidewalk && moving;
     }
 
-    std::pair<FiniteAutomationState*, double> transition() override {
+    std::pair<FiniteAutomationState*, double> MovingAlongSidewalkState::transition()  {
         // Determine the next state based on current features
 
         // MovingAlongSidewalkState -> CrossingState
@@ -336,17 +301,15 @@ public:
         // Stay in the MovingAlongSidewalkState if no conditions are met
         return {this, 1.0};
     }
-};
 
 
-class ApproachingStationState : public FiniteAutomationState {
-public:
-    ApproachingStationState(const Features& features) {
+
+    ApproachingStationState::ApproachingStationState(const Features& features) {
         name = "Approach Target Station";
         this->features = features;
     }
 
-    static bool check(const Features& features) {
+    bool ApproachingStationState::check(const Features& features) {
         // Check for proximity to the station and other conditions
         bool near_station_X = features.distance_from_end_station_X < STATION_LENGTH * 200;
         bool near_station_Y = features.distance_from_end_station_Y < CLOSE_TO_STATION_THRESHOLD * 150;
@@ -356,7 +319,7 @@ public:
         return !on_road && near_station_X && near_station_Y && (features.User_speed > WALK_STAY_THRESHOLD * 0.2);
     }
 
-    std::pair<FiniteAutomationState*, double> transition() override {
+    std::pair<FiniteAutomationState*, double> ApproachingStationState::transition()  {
         // Determine the next state based on the current features
         if (std::abs(features.User_speed) < WALK_STAY_THRESHOLD &&
             !features.facing_to_road &&
@@ -368,23 +331,11 @@ public:
         // Stay in ApproachingStationState if no transition conditions are met
         return {this, 1.0};
     }
-};
 
 
 
-
-class FiniteAutomationMachine {
-private:
-    std::unique_ptr<FiniteAutomationState> current_state;
-    std::unique_ptr<FiniteAutomationState> next_state;
-    std::vector<bool> errorFlag;
-    std::vector<bool> default_error_flag;
-    std::string S_prev;
-
-public:
-    // Constructor
-    FiniteAutomationMachine(const Features& features, int error_flag_size = 3, 
-                            std::unique_ptr<FiniteAutomationState> initial_state = std::make_unique<ErrorState>())
+    FiniteAutomationMachine::FiniteAutomationMachine(const Features& features, int error_flag_size, 
+                            std::unique_ptr<FiniteAutomationState> initial_state)
         : current_state(std::move(initial_state)), S_prev("Error") {
 
         // Initialize error flags
@@ -398,7 +349,7 @@ public:
     }
 
     // Run function
-    void run(const Features& features, std::unique_ptr<FiniteAutomationState> new_state = nullptr) {
+    void FiniteAutomationMachine::run(const Features& features, std::unique_ptr<FiniteAutomationState> new_state) {
         if (new_state) {
             current_state = std::move(new_state);
         }
@@ -410,9 +361,9 @@ public:
         if (probability > 0.8) {
             current_state = std::move(next_state);
         }
-
         // Check whether the constraints are satisfied
         bool constraints_satisfied = current_state->check(features);
+
         errorFlag.erase(errorFlag.begin());
         errorFlag.push_back(constraints_satisfied);
 
@@ -431,13 +382,10 @@ public:
     return "Unknown";  // Return a default value if the current state is not set
     }
 
-    private:
-    bool anyOf(const std::vector<bool>& flags) {
+    
+    bool FiniteAutomationMachine::anyOf(const std::vector<bool>& flags) {
         for (bool flag : flags) {
             if (flag) return true;
         }
         return false;
     }
-};
-
-#endif
