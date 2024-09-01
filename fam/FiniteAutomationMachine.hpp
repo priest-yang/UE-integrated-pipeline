@@ -294,6 +294,28 @@ public:
     // Run function
     void run(const Features& features, std::unique_ptr<FiniteAutomationState> new_state = nullptr);
     std::string getCurrentStateName() const;
+    void setCurrentState(std::unique_ptr<FiniteAutomationState> new_state){
+        current_state = std::move(new_state);
+    };
+    void setCurrentStateByName(const std::string& name){
+        if (name == "At Station") {
+            current_state = std::make_unique<AtStationState>(Features());
+        } else if (name == "Wait") {
+            current_state = std::make_unique<WaitingState>(Features());
+        } else if (name == "Cross") {
+            current_state = std::make_unique<CrossingState>(Features());
+        } else if (name == "Approach Target Station") {
+            current_state = std::make_unique<ApproachingStationState>(Features());
+        } else if (name == "Move Along Sidewalk") {
+            current_state = std::make_unique<MovingAlongSidewalkState>(Features());
+        } else if (name == "Error") {
+            current_state = std::make_unique<ErrorState>(Features());
+        } else if (name == "Approach Sidewalk") {
+            current_state = std::make_unique<ApproachingSidewalkState>(Features());
+        } else {
+            throw std::runtime_error("No Such State: " + name);
+        }
+    };
 private:
     bool anyOf(const std::vector<bool>& flags);
 };

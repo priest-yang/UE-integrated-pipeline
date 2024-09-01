@@ -356,9 +356,9 @@ void ErrorState::initializeMLE() {
 
         current_state->update_features(features);
         auto [next, probability] = current_state->transition();
-        next_state.reset(next);
 
-        if (probability > 0.8) {
+        if (probability > 0.8 && next->name != current_state->name) {
+            next_state.reset(next);
             current_state = std::move(next_state);
         }
         // Check whether the constraints are satisfied

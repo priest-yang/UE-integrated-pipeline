@@ -85,8 +85,11 @@ int main() {
             std::vector<std::string> states;
             auto start_time = std::chrono::high_resolution_clock::now();
 
+            model.setCurrentStateByName(file_buffer[0].state);  // Set the initial state
+            file_buffer.pop_front();
             for (const auto& buffered_features : file_buffer) {
-                std::cout << model.getCurrentStateName() << std::endl;
+                std::cout << model.getCurrentStateName() << " Ground Truth:  ";
+                std::cout << buffered_features.state << std::endl;
                 model.run(buffered_features);  // Run the model on each buffered item
                 states.push_back(model.getCurrentStateName());  // Assuming getCurrentStateName() returns the state name
             }
@@ -96,10 +99,6 @@ int main() {
             time_list.push_back(elapsed.count());
 
             std::cout << "Time elapsed: " << elapsed.count() << " seconds\n";
-            std::cout << "States: ";
-            for (const auto& state : states) {
-                std::cout << state << " ";
-            }
             std::cout << std::endl;
         }
     }

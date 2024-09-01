@@ -25,7 +25,31 @@
             ],
             "preLaunchTask": "C/C++: g++-11 build active file",
             "miDebuggerPath": "/usr/bin/gdb"
+        }, 
+        {
+            "name": "Debug FAM",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/fam/fam",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build FAM",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "internalConsoleOptions": "openOnSessionStart"
+
         }
+        
     ],
     "version": "2.0.0"
 }
