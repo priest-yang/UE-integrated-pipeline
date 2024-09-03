@@ -103,7 +103,7 @@ public:
         std::cout << "Speed: " << this->cnt / elapsed.count() << " lines per second.\n\n" << std::endl;
     }
 
-
+    // TODO: Is this to run multiple instances of the model paralelly?
     void start(const std::string& filename = "") {
         this->cnt = 0;
         std::thread worker(&ModelRunner::processFile, this, filename);
