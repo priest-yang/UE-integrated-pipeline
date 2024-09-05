@@ -13,7 +13,7 @@ data/PandasData/Sampled_state/*
 data/Plots
 data/*.pkl
 
-data/demo/raw*
+data/demo/raw/*
 data/demo/feature_fam/*
 data/demo/feature_model/*
 !data/demo/raw/0.csv

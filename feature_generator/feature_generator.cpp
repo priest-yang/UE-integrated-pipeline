@@ -4,8 +4,12 @@
 #include <vector>
 #include <deque>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include "config.hpp"
+#include <chrono>
+#include <numeric> 
 
 using namespace std;
 
@@ -144,17 +148,49 @@ vector<Features> process_rows(const deque<Row>& rows) {
 }
 
 
-int main() {
-    // Example usage
-    deque<Row> rows = {
-        {1000, 2000, 0.5, 0.5, 1500, 2500, 1},
-        {1005, 2005, 0.6, 0.4, 1510, 2510, 2},
-        {1010, 2010, 0.7, 0.3, 1520, 2520, 3}
-    };
+// Parse CSV line into Row struct
+Row parseCSVLine(const std::string& line, const std::vector<std::string>& headers) {
+    std::istringstream lineStream(line);
+    std::string cell;
+    Row row;
+    size_t columnIndex = 0;
 
-    vector<Features> features_list = process_rows(rows);
+    while (std::getline(lineStream, cell, ',')) {
+        if (columnIndex < headers.size()) {
+            row.setField(headers[columnIndex], cell);
+        }
+        columnIndex++;
+    }
 
-    // Output features for verification
+    return row;
+}
+
+// Read and parse CSV file
+std::vector<Row> parseCSV(const std::string& filePath) {
+    std::ifstream file(filePath);
+    std::string line;
+    std::vector<Row> records;
+    std::vector<std::string> headers;
+
+    // Read headers
+    if (std::getline(file, line)) {
+        std::istringstream headerStream(line);
+        std::string header;
+        while (std::getline(headerStream, header, ',')) {
+            headers.push_back(header);
+        }
+    }
+
+    // Read data lines
+    while (std::getline(file, line)) {
+        records.push_back(parseCSVLine(line, headers));
+    }
+
+    return records;
+}
+
+void vis_features(vector<Features> features_list){
+  // Output features for verification
     for (const auto& features : features_list) {
         cout << "AGV_distance_X: " << features.AGV_distance_X
              << ", AGV_distance_Y: " << features.AGV_distance_Y
@@ -199,6 +235,38 @@ int main() {
              << ", TimestampID: " << features.TimestampID
              << endl;
     }
+}
+
+
+int main() {
+    std::string file_path = "/home/shaoze/Documents/Boeing/UE-integrated-pipeline/data/demo/raw/0.csv";  // Update with the correct path
+    std::deque<Row> file_buffer;
+    vector<Features> features_list;
+    const size_t buffer_max_size = 40;
+
+    std::vector<double> time_list;
+    auto records = parseCSV(file_path);
+    for (const auto& features : records) {
+        file_buffer.push_back(features);
+        if (file_buffer.size() > buffer_max_size) {
+            file_buffer.pop_front();  // Maintain a fixed-size buffer
+            
+            auto start_time = std::chrono::high_resolution_clock::now();
+            features_list = process_rows(file_buffer);
+            auto end_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = end_time - start_time;
+            vis_features(features_list);
+            time_list.push_back(elapsed.count());
+            std::cout << "Time elapsed: " << elapsed.count() << " seconds\n";
+            std::cout << std::endl;
+        }
+    }
+
+    double total_time = std::accumulate(time_list.begin(), time_list.end(), 0.0);
+    std::cout << "\n\n\n";
+    std::cout << "Elapsed time: " << total_time << " seconds\n";
+    std::cout << "Processed " << time_list.size() << " groups.\n";
+    std::cout << "Speed: " << time_list.size() / total_time << " groups per second\n";
 
     return 0;
 }
