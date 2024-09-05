@@ -1,9 +1,3 @@
-#include <iostream>
-#include <string>
-#include <vector>
-#include <algorithm>
-#include <cassert>
-#include <memory>
 #include "FiniteAutomationMachine.hpp"
 
 
@@ -74,18 +68,7 @@ void ErrorState::initializeMLE() {
         name = "At Station";
         this->features = features;
     }
-
-// static bool AtStationState::check(const Features& features) {
-//     // Constraint 1: Be stationary
-//     bool stationary = std::abs(features.User_speed) <= WALK_STAY_THRESHOLD * 2;
-//     // Constraint 2: Be within a small distance of the station
-//     bool near_station_X = features.distance_to_closest_station_X < CLOSE_TO_STATION_THRESHOLD_X * 200;
-//     bool near_station_Y = features.distance_to_closest_station_Y < CLOSE_TO_STATION_THRESHOLD_Y * 200;
-//     bool near_station = near_station_X && near_station_Y;
-//     // Constraint 3: Not be on the road
-//     bool on_road = features.On_road;
-//     return stationary && near_station && !on_road;
-// }
+    
 
     std::pair<FiniteAutomationState*, double> AtStationState::transition(){
         // AtStation -> ApproachingSidewalkState or WaitingState

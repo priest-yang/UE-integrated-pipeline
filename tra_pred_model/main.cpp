@@ -112,7 +112,7 @@ public:
 };
 
 int main() {
-    ModelRunner runner("/home/shaoze/Documents/Boeing/UE-integrated-pipeline/model/model_tft_vqvae_cpu_preproc.pt",
+    ModelRunner runner("/home/shaoze/Documents/Boeing/UE-integrated-pipeline/tra_pred_model/model/model_tft_vqvae_cpu_preproc.pt",
                        "/home/shaoze/Documents/Boeing/UE-integrated-pipeline/tra_pred_model/demo/0.csv",
                        32, // Feature dimension
                        40); // Capacity or batch size

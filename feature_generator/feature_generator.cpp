@@ -5,62 +5,9 @@
 #include <deque>
 #include <iostream>
 #include <string>
+#include "config.hpp"
 
 using namespace std;
-
-struct Row {
-    double User_X;
-    double User_Y;
-    double GazeDirection_X;
-    double GazeDirection_Y;
-    double AGV_X;
-    double AGV_Y;
-    int TimestampID;
-};
-
-struct Features {
-    double AGV_distance_X;
-    double AGV_distance_Y;
-    double AGV_speed_X;
-    double AGV_speed_Y;
-    double AGV_speed;
-    double User_speed_X;
-    double User_speed_Y;
-    double User_speed;
-    double User_velocity_X;
-    double User_velocity_Y;
-    double Wait_time;
-    bool intent_to_cross;
-    int Gazing_station;
-    bool possible_interaction;
-    bool facing_along_sidewalk;
-    bool facing_to_road;
-    bool On_sidewalks;
-    bool On_road;
-    int closest_station;
-    double distance_to_closest_station;
-    double distance_to_closest_station_X;
-    double distance_to_closest_station_Y;
-    bool looking_at_AGV;
-    double start_station_X;
-    double start_station_Y;
-    double end_station_X;
-    double end_station_Y;
-    double distance_from_start_station_X;
-    double distance_from_start_station_Y;
-    double distance_from_end_station_X;
-    double distance_from_end_station_Y;
-    bool facing_start_station;
-    bool facing_end_station;
-    bool looking_at_closest_station;
-    double GazeDirection_X;
-    double GazeDirection_Y;
-    double AGV_X;
-    double AGV_Y;
-    double User_X;
-    double User_Y;
-    int TimestampID;
-};
 
 const map<int, pair<double, double>> stations = {
     {1, {1580, 8683}},
