@@ -4,7 +4,7 @@
             "name": "Debug FAM",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/fam/main",
+            "program": "${workspaceFolder}/build/fam",  
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -23,10 +23,10 @@
             "internalConsoleOptions": "openOnSessionStart"
         }, 
         {
-            "name": "Debug feature generator",
+            "name": "Debug Feature Generator",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/feature_generator/main",
+            "program": "${workspaceFolder}/build/feature_generator",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -44,6 +44,40 @@
             "miDebuggerPath": "/usr/bin/gdb",
             "internalConsoleOptions": "openOnSessionStart"
         }, 
+
+
+        // Trajectory Prediction Model
+        {
+            "name": "Debug Trajectory Prediction Model",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/tra_pred_model",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+              {
+                "description": "Enable pretty-printing for gdb",
+                "text": "-enable-pretty-printing",
+                "ignoreFailures": true
+              }
+            ],
+            "preLaunchTask": "Build Trajectory Prediction Model",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "logging": {
+              "trace": true,
+              "traceResponse": true,
+              "engineLogging": true
+            }
+          },
+          
+
+
+
+
         
     ],
     "version": "2.0.0"

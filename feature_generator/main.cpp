@@ -7,7 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "config.hpp"
+#include <config.hpp>
 #include <chrono>
 #include <numeric> 
 
