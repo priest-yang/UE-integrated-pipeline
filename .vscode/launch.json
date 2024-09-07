@@ -5,7 +5,11 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/fam",  
-            "args": [],
+            "args": [
+                "--file_path", "${workspaceFolder}/data/demo/feature_fam/0.csv",
+                "--buffer_size", "40", 
+
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -27,7 +31,10 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/feature_generator",
-            "args": [],
+            "args": [
+                "--file_path", "${workspaceFolder}/data/demo/raw/0.csv",
+                "--buffer_size", "40", 
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -52,7 +59,12 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/tra_pred_model",
-            "args": [],
+            "args": [
+                "--file_path", "${workspaceFolder}/data/demo/feature_model/0.csv",
+                "--batch_size", "40",
+                "--model_path", "${workspaceFolder}/tra_pred_model/model/model_tft_vqvae_cpu_preproc.pt", 
+                "--feature_dim", "32", 
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

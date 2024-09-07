@@ -14,6 +14,7 @@
 #include <functional>
 #include <numeric> 
 #include <memory>
+#include <argparse.hpp>
 
 
 // Parse CSV line into Features struct
@@ -57,10 +58,32 @@ std::vector<Features> parseCSV(const std::string& filePath) {
     return records;
 }
 
-int main() {
-    std::string file_path = "/home/shaoze/Documents/Boeing/UE-integrated-pipeline/data/demo/feature_fam/0.csv";  // Update with the correct path
+int main(int argc, char** argv) {
+    argparse::ArgumentParser program("FAM Benchmarking Program");
+
+    // Add arguments
+    program.add_argument("-f", "--file_path")
+        .help("Path to the CSV file containing feature records")
+        .default_value(std::string("data/demo/feature_fam/0.csv"));
+
+    program.add_argument("-b", "--buffer_size")
+        .help("Size of the buffer for processing")
+        .default_value(40)
+        .scan<'i', size_t>(); // Scanning as size_t; 
+
+    try {
+        program.parse_args(argc, argv);
+    } catch (const std::runtime_error& err) {
+        std::cout << err.what() << std::endl;
+        std::cout << program;
+        exit(0);
+    }
+
+    // Get the file path and buffer size from the arguments
+    std::string file_path = program.get<std::string>("-f");
+    const size_t buffer_max_size = program.get<size_t>("-b");
+
     std::deque<Features> file_buffer;  // Create a deque to hold the buffer
-    const size_t buffer_max_size = 40;
 
     // Initialize the FiniteAutomationMachine with default parameters
 

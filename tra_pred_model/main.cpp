@@ -6,6 +6,7 @@
 #include <thread>
 #include <torch/script.h>
 #include <torch/torch.h>
+#include <argparse.hpp>
 
 class ModelRunner {
 private:
@@ -111,12 +112,48 @@ public:
     }
 };
 
-int main() {
-    ModelRunner runner("/home/shaoze/Documents/Boeing/UE-integrated-pipeline/tra_pred_model/model/model_tft_vqvae_cpu_preproc.pt",
-                       "/home/shaoze/Documents/Boeing/UE-integrated-pipeline/tra_pred_model/demo/0.csv",
-                       32, // Feature dimension
-                       40); // Capacity or batch size
+int main(int argc, char** argv) {
+    argparse::ArgumentParser program("FAM Benchmarking Program");
 
-    runner.start("/home/shaoze/Documents/Boeing/Boeing-Trajectory-Prediction/pipeline/demo/1.csv");
+    // Add arguments
+    program.add_argument("-f", "--file_path")
+        .help("Path to the CSV file containing feature records")
+        .default_value(std::string("data/demo/feature_model/0.csv"));
+
+    program.add_argument("-b", "--batch_size")
+        .help("Size of bach for processing")
+        .default_value(40)
+        .scan<'i', size_t>(); // Scanning as size_t; 
+
+    program.add_argument("-m", "--model_path")
+        .help("Path to the model file")
+        .default_value(std::string("tra_pred_model/model/model_tft_vqvae_cpu_preproc.pt"));
+
+    program.add_argument("--feature_dim")
+        .help("Feature dimension")
+        .default_value(32)
+        .scan<'i', int>();
+
+    try {
+        program.parse_args(argc, argv);
+    } catch (const std::runtime_error& err) {
+        std::cout << err.what() << std::endl;
+        std::cout << program;
+        exit(0);
+    }
+
+    // Get the file path and buffer size from the arguments
+    std::string file_path = program.get<std::string>("-f");
+    const size_t batch_size = program.get<size_t>("-b");
+    std::string model_path = program.get<std::string>("-m");
+    int feature_dim = program.get<int>("--feature_dim");
+
+
+    ModelRunner runner(model_path,
+                       file_path,
+                       feature_dim, // Feature dimension
+                       batch_size); // Capacity or batch size
+
+    runner.start(file_path);
     return 0;
 }

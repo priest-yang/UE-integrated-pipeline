@@ -85,6 +85,8 @@
         "locale": "cpp",
         "threadpool": "cpp",
         "*.def": "cpp",
-        "*.inc": "cpp"
+        "*.inc": "cpp",
+        "version": "cpp",
+        "charconv": "cpp"
     }
 }
