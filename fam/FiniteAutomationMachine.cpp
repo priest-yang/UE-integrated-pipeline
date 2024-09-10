@@ -22,20 +22,33 @@ void ErrorState::initializeMLE() {
         MLE["Move Along Sidewalk"] = {0.000446, 0.008439, 0.087452, 0.003367, 0.004598, 0.9200};
         MLE["Approach Target Station"] = {0.003565, 0.000000, 0.000000, 0.131313, 0, 0.0650};
         MLE["Cross"] = {0.000000, 0.040084, 0.262357, 0.850168, 0.000000, 0.0025};
+
+        index = {"At Station", "Wait", "Approach Sidewalk", "Cross", "Approach Target Station", "Move Along Sidewalk"};
+
     }
 
 
     std::pair<FiniteAutomationState*, double> ErrorState::transition() {
+        if (this->S_prev == "Error"){
+            if (AtStationState::mycheck(features)) return {new AtStationState(features), 1.0};
+            if (WaitingState::mycheck(features)) return {new WaitingState(features), 1.0};
+            if (CrossingState::mycheck(features)) return {new CrossingState(features), 1.0};
+            if (ApproachingSidewalkState::mycheck(features)) return {new ApproachingSidewalkState(features), 1.0};
+            if (MovingAlongSidewalkState::mycheck(features)) return {new MovingAlongSidewalkState(features), 1.0};
+            if (ApproachingStationState::mycheck(features)) return {new ApproachingStationState(features), 1.0};
+            return {this, 1.0};
+        }
+
         // Simulating the transition logic based on provided features and previous state
         std::vector<std::pair<std::string, double>> Q;
 
         // Assuming these check functions are static and correctly defined in respective classes
-        if (AtStationState::mycheck(features)) Q.push_back({"At Station", MLE["At Station"][0]});
-        if (WaitingState::mycheck(features)) Q.push_back({"Wait", MLE["Wait"][0]});
-        if (CrossingState::mycheck(features)) Q.push_back({"Cross", MLE["Cross"][0]});
-        if (ApproachingSidewalkState::mycheck(features)) Q.push_back({"Approach Sidewalk", MLE["Approach Sidewalk"][0]});
-        if (MovingAlongSidewalkState::mycheck(features)) Q.push_back({"Move Along Sidewalk", MLE["Move Along Sidewalk"][0]});
-        if (ApproachingStationState::mycheck(features)) Q.push_back({"Approach Target Station", MLE["Approach Target Station"][0]});
+        if (AtStationState::mycheck(features)) Q.push_back({"At Station", MLE[this->S_prev][std::find(index.begin(), index.end(), "At Station") - index.begin()]});
+        if (WaitingState::mycheck(features)) Q.push_back({"Wait", MLE[this->S_prev][std::find(index.begin(), index.end(), "Wait") - index.begin()]});
+        if (CrossingState::mycheck(features)) Q.push_back({"Cross", MLE[this->S_prev][std::find(index.begin(), index.end(), "Cross") - index.begin()]});
+        if (ApproachingSidewalkState::mycheck(features)) Q.push_back({"Approach Sidewalk", MLE[this->S_prev][std::find(index.begin(), index.end(), "Approach Sidewalk") - index.begin()]});
+        if (MovingAlongSidewalkState::mycheck(features)) Q.push_back({"Move Along Sidewalk", MLE[this->S_prev][std::find(index.begin(), index.end(), "Move Along Sidewalk") - index.begin()]});
+        if (ApproachingStationState::mycheck(features)) Q.push_back({"Approach Target Station", MLE[this->S_prev][std::find(index.begin(), index.end(), "Approach Target Station") - index.begin()]});
 
         if (Q.empty()) {
             return {this, 1.0};

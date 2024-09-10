@@ -37,6 +37,7 @@ public:
 class ErrorState : public FiniteAutomationState {
     std::string S_prev;
     std::unordered_map<std::string, std::vector<double>> MLE;
+    std::vector<std::string> index;
 
 public:
     ErrorState(const Features& features, const std::string& S_prev = "Error");
@@ -46,6 +47,7 @@ public:
     static bool mycheck(const Features& features){return true;};
     std::pair<FiniteAutomationState*, double> transition();
     FiniteAutomationState* getStateByName(const std::string& name, const Features& features);
+
 };
 
 // Other state classes
