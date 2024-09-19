@@ -90,7 +90,7 @@ void ErrorState::initializeMLE() {
             next_state = new ApproachingSidewalkState(features);  // Assuming this state is properly defined elsewhere
             return {next_state, 1.0};
         } else if (std::abs(features.User_speed) <= WALK_STAY_THRESHOLD &&
-                   features.intent_to_cross && features.possible_interaction) {
+                   features.intent_to_cross && features.possible_interaction) { //TODO: How is possible interaction defined?
             next_state = new WaitingState(features);  // Assuming this state is properly defined elsewhere
             return {next_state, 1.0};
         } else {
@@ -110,6 +110,8 @@ void ErrorState::initializeMLE() {
     bool WaitingState::check(const Features& features) {
         // Check based on the speed and various interaction possibilities
         bool is_stationary = std::abs(features.User_speed) <= WALK_STAY_THRESHOLD;
+        // TODO: The third condition... In my old code, I see facing_to_road instead of On_road. 
+        // Waiting while facing the road makes more sense than when being on the road...
         bool is_interactive = features.possible_interaction || features.looking_at_AGV || features.On_road;
 
         return is_stationary && is_interactive;
@@ -120,6 +122,8 @@ void ErrorState::initializeMLE() {
         // Determine the next state based on the current feature conditions
 
         // WaitingState -> CrossingState
+        // TODO: In my old code, I was using User_speed_Y to check whether the user was moving across the road
+        // TODO: Which one would be better?
         if (std::abs(features.User_speed) > 0.8 * WALK_STAY_THRESHOLD &&
             features.On_road && features.facing_to_road) {
             next_state = new CrossingState(features);  // Assuming this state is properly defined elsewhere
@@ -165,6 +169,11 @@ void ErrorState::initializeMLE() {
         // Determine the next state based on the current features
 
         // CrossingState -> MovingAlongSidewalkState
+        // TODO: In my old code, I these conditions were very different
+        // Essentially, I was checking if the user is on the sidewalk and moving along the x-direction
+        // I did not need the user to face along the sidewalk direction and I did not have the second condition either.
+        // I think the facing sidewalk condition can be removed. Sometimes the participants move along the sidewalk but look elsewhere,
+        // for example, to check the location of the AGV
         if (features.On_sidewalks &&
             (std::abs(features.User_speed_X) > 1.5 * std::abs(features.User_speed_Y) ||
              (features.facing_along_sidewalk && std::abs(features.User_speed_X) > 0.5 * WALK_STAY_THRESHOLD))) {
@@ -173,6 +182,9 @@ void ErrorState::initializeMLE() {
         }
 
         // CrossingState -> ApproachingStationState
+        // TODO: According to your feature generator, the closest station is always the gazing station, i.e. the second
+        // condition is always true
+        // I understand what you are trying to do here, but you need to check your computations of the closest station once more
         if (std::abs(features.User_speed) > WALK_STAY_THRESHOLD &&
             features.closest_station == features.Gazing_station &&
             !features.On_road) {
@@ -226,6 +238,8 @@ void ErrorState::initializeMLE() {
         bool near_station = near_station_X && near_station_Y;
 
         // ApproachingSidewalkState -> CrossingState
+        // TODO: In my old code, I only had two conditions: the user should be moving and facing the road
+        // TODO: I guess being on the road is also a condition we should check
         if (std::abs(features.User_speed_Y) > 0.5 * WALK_STAY_THRESHOLD &&
             features.facing_to_road && features.On_road) {
             next_state = new CrossingState(features);  // Assuming this state is properly defined elsewhere
@@ -240,6 +254,7 @@ void ErrorState::initializeMLE() {
         }
 
         // ApproachingSidewalkState -> MovingAlongSidewalkState
+        // TODO: Can you explain the last condition?
         if ((std::abs(features.User_speed_X) > 1.5 * std::abs(features.User_speed_Y) ||
              (features.facing_along_sidewalk && std::abs(features.User_speed_X) > WALK_STAY_THRESHOLD)) &&
             (!near_station || features.facing_along_sidewalk)) {
@@ -262,8 +277,13 @@ void ErrorState::initializeMLE() {
     bool MovingAlongSidewalkState::check(const Features& features) {
         // Check for movement along the sidewalk within constraints
         bool moving = features.User_speed_X > WALK_STAY_THRESHOLD * 0.8;
+
+        // TODO: Here, you are using the start and end station information.
+        // TODO: You can rewrite it to use the on_sidewalks feature
         bool within_sidewalk = features.distance_from_start_station_Y < 500 + MARGIN_NEAR_SIDEWALKS * 100;
         within_sidewalk = within_sidewalk || (features.distance_from_end_station_Y < 500 + MARGIN_NEAR_SIDEWALKS * 100);
+
+        // TODO: In my old code, I also had an additional condition checking for facing_sidewalk
 
         return within_sidewalk && moving;
     }
@@ -280,6 +300,7 @@ void ErrorState::initializeMLE() {
         }
 
         // MovingAlongSidewalkState -> WaitingState
+        // TODO: possible_interaction
         if (std::abs(features.User_speed) < WALK_STAY_THRESHOLD &&
             features.intent_to_cross && features.possible_interaction) {
             next_state = new WaitingState(features);  // Assuming this state is properly defined elsewhere
@@ -287,6 +308,10 @@ void ErrorState::initializeMLE() {
         }
 
         // MovingAlongSidewalkState -> ApproachingStationState
+        // TODO: Explain these conditions
+        // They should be moving if they are approaching the station. So the first condition seems a bit dubious
+        // Looking at closest station is fine, I am not sure if it is necessary, but its fine
+        // The main condition to check for is the distance from closest station being less than the threshold
         if ((std::abs(features.User_speed) < WALK_STAY_THRESHOLD || features.looking_at_closest_station) &&
             !features.facing_to_road &&
             features.distance_to_closest_station <= CLOSE_TO_STATION_THRESHOLD * 200) {
@@ -307,19 +332,25 @@ void ErrorState::initializeMLE() {
 
     bool ApproachingStationState::check(const Features& features) {
         // Check for proximity to the station and other conditions
+        // TODO: You are using the end station information here. You can change the logic to not use that info
         bool near_station_X = features.distance_from_end_station_X < STATION_LENGTH * 200;
         bool near_station_Y = features.distance_from_end_station_Y < CLOSE_TO_STATION_THRESHOLD * 150;
+
+        // TODO: You are not even using the below value
         bool looking_at_station = features.facing_end_station;
         bool on_road = features.On_road;
 
+        // TODO: Is the last condition because they slow down near the station?
         return !on_road && near_station_X && near_station_Y && (features.User_speed > WALK_STAY_THRESHOLD * 0.2);
     }
 
     std::pair<FiniteAutomationState*, double> ApproachingStationState::transition()  {
         // Determine the next state based on the current features
+        // TODO: Do we need all these conditions? We can say that if a user stops moving once they are in the
+        // Approaching Station State, they transition to the At Station state? 
         if (std::abs(features.User_speed) < WALK_STAY_THRESHOLD &&
             !features.facing_to_road &&
-            features.distance_to_closest_station <= CLOSE_TO_STATION_THRESHOLD * 300) {
+            features.distance_to_closest_station <= CLOSE_TO_STATION_THRESHOLD * 300 /*This distance is very large*/) {
             next_state = new AtStationState(features);  // Assuming AtStationState is properly defined elsewhere
             return {next_state, 1.0};
         }
