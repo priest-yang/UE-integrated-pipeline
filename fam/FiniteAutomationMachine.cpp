@@ -85,11 +85,12 @@ void ErrorState::initializeMLE() {
 
     std::pair<FiniteAutomationState*, double> AtStationState::transition(){
         // AtStation -> ApproachingSidewalkState or WaitingState
-        if (std::abs(features.User_speed) > WALK_STAY_THRESHOLD &&
+        bool is_moving = std::abs(features.User_speed) > WALK_STAY_THRESHOLD;
+        if (is_moving &&
             (features.On_sidewalks || features.facing_along_sidewalk)) {
             next_state = new ApproachingSidewalkState(features);  // Assuming this state is properly defined elsewhere
             return {next_state, 1.0};
-        } else if (std::abs(features.User_speed) <= WALK_STAY_THRESHOLD &&
+        } else if (!is_moving &&
                    features.intent_to_cross && features.possible_interaction) {
             next_state = new WaitingState(features);  // Assuming this state is properly defined elsewhere
             return {next_state, 1.0};
@@ -172,8 +173,9 @@ void ErrorState::initializeMLE() {
             return {next_state, 1.0};
         }
 
+        bool is_moving = std::abs(features.User_speed) > WALK_STAY_THRESHOLD;
         // CrossingState -> ApproachingStationState
-        if (std::abs(features.User_speed) > WALK_STAY_THRESHOLD &&
+        if (is_moving &&
             features.closest_station == features.Gazing_station &&
             !features.On_road) {
             next_state = new ApproachingStationState(features);  // Assuming this state is properly defined elsewhere
@@ -181,7 +183,7 @@ void ErrorState::initializeMLE() {
         }
 
         // CrossingState -> WaitingState (wait for AGV)
-        if (std::abs(features.User_speed) < WALK_STAY_THRESHOLD &&
+        if (!is_moving &&
             features.possible_interaction &&
             features.looking_at_AGV &&
             features.On_road) {
@@ -190,7 +192,7 @@ void ErrorState::initializeMLE() {
         }
 
         // CrossingState -> AtStationState (previously ArrivedState, but simplified for C++)
-        if (std::abs(features.User_speed) < WALK_STAY_THRESHOLD &&
+        if (!is_moving &&
             !features.facing_to_road &&
             features.distance_to_closest_station <= CLOSE_TO_STATION_THRESHOLD * 100) {
             next_state = new AtStationState(features);  // Assuming this state is properly defined elsewhere
@@ -241,7 +243,7 @@ void ErrorState::initializeMLE() {
 
         // ApproachingSidewalkState -> MovingAlongSidewalkState
         if ((std::abs(features.User_speed_X) > 1.5 * std::abs(features.User_speed_Y) ||
-             (features.facing_along_sidewalk && std::abs(features.User_speed_X) > WALK_STAY_THRESHOLD)) &&
+             (features.facing_along_sidewalk && std::abs(features.User_speed_X) > WALK_STAY_THRESHOLD)) && //TODO: Different from line 175. Why?
             (!near_station || features.facing_along_sidewalk)) {
             next_state = new MovingAlongSidewalkState(features);  // Assuming this state is properly defined elsewhere
             return {next_state, 1.0};
@@ -279,15 +281,17 @@ void ErrorState::initializeMLE() {
             return {next_state, 1.0};
         }
 
+        bool is_stationary = std::abs(features.User_speed) < WALK_STAY_THRESHOLD;
+
         // MovingAlongSidewalkState -> WaitingState
-        if (std::abs(features.User_speed) < WALK_STAY_THRESHOLD &&
+        if (is_stationary &&
             features.intent_to_cross && features.possible_interaction) {
             next_state = new WaitingState(features);  // Assuming this state is properly defined elsewhere
             return {next_state, 1.0};
         }
 
         // MovingAlongSidewalkState -> ApproachingStationState
-        if ((std::abs(features.User_speed) < WALK_STAY_THRESHOLD || features.looking_at_closest_station) &&
+        if ((is_stationary || features.looking_at_closest_station) &&
             !features.facing_to_road &&
             features.distance_to_closest_station <= CLOSE_TO_STATION_THRESHOLD * 200) {
             next_state = new ApproachingStationState(features);  // Assuming this state is properly defined elsewhere

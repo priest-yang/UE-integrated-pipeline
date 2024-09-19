@@ -110,6 +110,9 @@ int main(int argc, char** argv) {
 
             model.setCurrentStateByName(file_buffer[0].state);  // Set the initial state
             file_buffer.pop_front();
+
+            // TODO: This seems like you are running the FAM multiple times on the same features
+            //       For example, the state at the 39th feature will be computed 40 times
             for (const auto& buffered_features : file_buffer) {
                 std::cout << model.getCurrentStateName() << " Ground Truth:  ";
                 std::cout << buffered_features.state << std::endl;
