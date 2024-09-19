@@ -37,6 +37,7 @@ double get_angle_between_normalized_vectors(const tuple<double, double>& v1, con
     return acos(dot_product);
 }
 
+// TODO: Does this function compute the closest station or the station that matches the gaze direction most closely?
 pair<double, int> get_most_close_station_direction(const Row& row) {
     double max_cos = -1;
     int most_common_station = -1;
@@ -93,29 +94,45 @@ Features extract_features(const deque<Row>& rows, size_t index) {
         features.User_velocity_Y = 0.0;
     }
 
-    // Wait time calculation (simplified as an example)
+    // Wait time calculation (simplified as an example) 
+    //TODO: Can we use the WALK_STAY_THRESHOLD here instead of the 0.1?
+    //TODO: Understand this...
     features.Wait_time = (features.User_speed < 0.1) ? (index > 0 ? rows[index - 1].TimestampID : 0) : 0;
 
     // Most close station and intent to cross
+    //TODO: Is this the station that is closest to the user's gaze direction?
     auto station_direction = get_most_close_station_direction(row);
     features.Gazing_station = station_direction.second;
+
+    //TODO: Include another constant in constant.hpp for this instead of using a random float here...
     features.intent_to_cross = get_user_agv_direction_cos(row) > 0.5;
 
     // Possible interaction (as an example)
+    //TODO: Include another constant in constant.hpp for this instead of using a random float here...
+    //TODO: Not sure how this corresponds to possible interaction.
+    //TODO: Please explain this feature
     features.possible_interaction = station_direction.first > 0.5;
 
     // Example features (need more context to compute correctly)
+    // TODO: These features have not been computed. Are we not using them anymore?
     features.facing_along_sidewalk = false;
     features.facing_to_road = false;
     features.On_sidewalks = false;
     features.On_road = false;
+
+    // TODO: Is the gazing station always the closest station?
     features.closest_station = features.Gazing_station;
+
+    // TODO: This is incorrect
     features.distance_to_closest_station = features.AGV_distance_X; // Simplified
     features.distance_to_closest_station_X = features.AGV_distance_X;
     features.distance_to_closest_station_Y = features.AGV_distance_Y;
+
+    //TODO: Include another constant in constant.hpp for this instead of using a random float here...
     features.looking_at_AGV = get_user_agv_direction_cos(row) > 0.5;
 
     // Start and end station coordinates (as an example, hard-coded)
+    // TODO: These also seem incorrect. Are we not using these features?
     features.start_station_X = 0.0;
     features.start_station_Y = 0.0;
     features.end_station_X = 100.0;
@@ -126,6 +143,8 @@ Features extract_features(const deque<Row>& rows, size_t index) {
     features.distance_from_end_station_Y = row.User_Y - features.end_station_Y;
     features.facing_start_station = false;
     features.facing_end_station = false;
+
+    // TODO: This statement also feels dubious
     features.looking_at_closest_station = features.looking_at_AGV;
 
     // Copy raw features
