@@ -55,7 +55,7 @@
 
         // Trajectory Prediction Model
         {
-            "name": "Debug Trajectory Prediction Model",
+            "name": "Debug Trajectory Prediction Model (LibTorch)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/tra_pred_model",

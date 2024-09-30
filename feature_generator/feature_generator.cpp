@@ -15,11 +15,11 @@
 
 using namespace std;
 
-tuple<double, double> get_direction_normalized(const tuple<double, double>& start, const tuple<double, double>& end) {
+pair<double, double> get_direction_normalized(const tuple<double, double>& start, const tuple<double, double>& end) {
     double x = get<0>(end) - get<0>(start);
     double y = get<1>(end) - get<1>(start);
     double length = sqrt(x * x + y * y);
-    return make_tuple(x / length, y / length);
+    return {x / length, y / length};
 }
 
 double get_angle_between_normalized_vectors(const tuple<double, double>& v1, const tuple<double, double>& v2) {
@@ -54,7 +54,7 @@ std::tuple<double, int, double, double> get_most_close_station_direction(const R
 }
 
 double get_user_agv_direction_cos(const Row& row) {
-    tuple<double, double> direction_normalized = get_direction_normalized(
+    pair<double, double> direction_normalized = get_direction_normalized(
         make_tuple(row.User_X, row.User_Y), make_tuple(row.AGV_X, row.AGV_Y));
     return row.GazeDirection_X * get<0>(direction_normalized) +
            row.GazeDirection_Y * get<1>(direction_normalized);
@@ -314,7 +314,7 @@ vector<Features> generate_wait_time(vector<Features>& rows, double H1 = 0.2, dou
         // tuple<double, double> target_station_pos = stations[User_trajectory[stoi(row.AGV_name.substr(3))][1]];
         // tuple<double, double> user_target_station_dir = get_direction_normalized(make_tuple(row.User_X, row.User_Y), target_station_pos);
 
-        tuple<double, double> user_agv_dir = get_direction_normalized(make_tuple(row.User_X, row.User_Y), make_tuple(row.AGV_X, row.AGV_Y));
+        pair<double, double> user_agv_dir = get_direction_normalized(make_tuple(row.User_X, row.User_Y), make_tuple(row.AGV_X, row.AGV_Y));
 
         double user_target_station_angle = get_angle_between_normalized_vectors(make_tuple(row.GazeDirection_X, row.GazeDirection_Y), user_agv_dir);
         double user_agv_angle = get_angle_between_normalized_vectors(make_tuple(row.GazeDirection_X, row.GazeDirection_Y), make_tuple(row.closest_station_dir_X, row.closest_station_dir_Y));
