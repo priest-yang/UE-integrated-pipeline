@@ -11,19 +11,9 @@
 #include <chrono>
 #include <numeric> 
 #include <argparse.hpp>
+#include <constant.hpp>
 
 using namespace std;
-
-const map<int, pair<double, double>> stations = {
-    {1, {1580, 8683}},
-    {2, {1605, 5800}},
-    {3, {5812, 8683}},
-    {4, {5800, 5786}},
-    {5, {7632, 8683}},
-    {6, {7639, 5786}},
-    {7, {13252, 8683}},
-    {8, {13319, 5796}}
-};
 
 tuple<double, double> get_direction_normalized(const tuple<double, double>& start, const tuple<double, double>& end) {
     double x = get<0>(end) - get<0>(start);
@@ -37,22 +27,30 @@ double get_angle_between_normalized_vectors(const tuple<double, double>& v1, con
     return acos(dot_product);
 }
 
-// TODO: Does this function compute the closest station or the station that matches the gaze direction most closely?
-pair<double, int> get_most_close_station_direction(const Row& row) {
+// fixed: Does this function compute the closest station or the station that matches the gaze direction most closely?
+std::tuple<double, int, double, double> get_most_close_station_direction(const Row& row) {
     double max_cos = -1;
     int most_common_station = -1;
+    double closest_station_X;
+    double closest_station_Y;
+    for (const auto& [station, position] : stations) {
+        // Get normalized direction vector
+        std::pair<double, double> direction_normalized = get_direction_normalized({row.User_X, row.User_Y}, position);
 
-    for (const auto& station : stations) {
-        tuple<double, double> direction_normalized = get_direction_normalized(
-            make_tuple(row.User_X, row.User_Y), station.second);
-        double cosine_gaze_direction = row.GazeDirection_X * get<0>(direction_normalized) +
-                                       row.GazeDirection_Y * get<1>(direction_normalized);
+        // Calculate cosine of the angle between gaze direction and station direction
+        double cosine_gaze_direction = row.GazeDirection_X * direction_normalized.first + row.GazeDirection_Y * direction_normalized.second;
+
+        
+        // Update max cosine and station if current cosine is greater
         if (cosine_gaze_direction > max_cos) {
             max_cos = cosine_gaze_direction;
-            most_common_station = station.first;
+            most_common_station = station;
+            closest_station_X = direction_normalized.first;
+            closest_station_Y = direction_normalized.second;
         }
     }
-    return make_pair(max_cos, most_common_station);
+
+    return { max_cos, most_common_station, closest_station_X, closest_station_Y };
 }
 
 double get_user_agv_direction_cos(const Row& row) {
@@ -62,13 +60,160 @@ double get_user_agv_direction_cos(const Row& row) {
            row.GazeDirection_Y * get<1>(direction_normalized);
 }
 
+bool intent_to_cross_helper(const Features& row) {
+    const double THRESHOLD_ANGLE = 30;
+    const double THRESHOLD_COS = std::cos(THRESHOLD_ANGLE * M_PI / 180);  // Convert angle to radians
+
+    bool facing_to_road = true;
+
+    // Check for moving down and above threshold
+    if (row.User_velocity_Y < 0 && row.User_Y > 6295) {
+        // If moving down, should be looking down
+        facing_to_road = -row.GazeDirection_Y > THRESHOLD_COS;
+    } else if (row.User_velocity_Y < -WALK_STAY_THRESHOLD && row.User_Y < 6295) {
+        facing_to_road = false;
+    }
+
+    // Check for moving up and below threshold
+    if (row.User_velocity_Y > 0 && row.User_Y < 8150) {
+        // If moving up, should be looking up
+        facing_to_road = row.GazeDirection_Y > THRESHOLD_COS;
+    } else if (row.User_velocity_Y > WALK_STAY_THRESHOLD && row.User_Y > 8150) {
+        facing_to_road = false;
+    }
+
+    // Determine if the user intends to cross the road
+    if ((row.gazing_station_direction_cos > THRESHOLD_COS && 
+         std::abs(row.User_Y - std::get<1>(stations[row.Gazing_station])) > 300) ||
+        (row.user_agv_direction_cos > THRESHOLD_COS) && facing_to_road) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+// Helper function to compute the distance between two points (x1, y1) and (x2, y2)
+double compute_distance(double x1, double y1, double x2, double y2) {
+    return std::sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+}
+
+// Possible interaction function to check for collision
+bool possible_interaction_helper(const Features& row, double COLLISION_THRESHOLD) {
+    // Relative velocity between the AGV and the user
+    double relative_velocity_X = row.User_speed_X - row.AGV_speed_X;
+    double relative_velocity_Y = row.User_speed_Y - row.AGV_speed_Y;
+
+    // Initial distance between the AGV and the user
+    double initial_distance = compute_distance(row.User_X, row.User_Y, row.AGV_X, row.AGV_Y);
+
+    // If initial distance is less than the threshold, assume possible interaction
+    if (initial_distance < COLLISION_THRESHOLD) {
+        return true;
+    }
+
+    // Time to collision (assuming constant velocity model)
+    double relative_speed_squared = relative_velocity_X * relative_velocity_X + relative_velocity_Y * relative_velocity_Y;
+
+    // If relative speed is zero, no collision can happen (they are moving parallel or stationary)
+    if (relative_speed_squared == 0) {
+        return false;
+    }
+
+    // Projected future positions: Compute the time when they would collide
+    double time_to_collision = -((row.User_X - row.AGV_X) * relative_velocity_X + (row.User_Y - row.AGV_Y) * relative_velocity_Y) / relative_speed_squared;
+
+    // If the collision time is positive and the objects are projected to be within the threshold distance at that time
+    if (time_to_collision > 0) {
+        double future_user_X = row.User_X + row.User_speed_X * time_to_collision;
+        double future_user_Y = row.User_Y + row.User_speed_Y * time_to_collision;
+        double future_agv_X = row.AGV_X + row.AGV_speed_X * time_to_collision;
+        double future_agv_Y = row.AGV_Y + row.AGV_speed_Y * time_to_collision;
+
+        double future_distance = compute_distance(future_user_X, future_user_Y, future_agv_X, future_agv_Y);
+
+        if (future_distance < COLLISION_THRESHOLD) {
+            return true;
+        }
+    }
+
+    return false;  // No collision is expected
+}
+
+bool facing_road_helper(const Features& row) {
+    // If moving down and Y is greater than 6295
+    if (row.User_velocity_Y < 0 && row.User_Y > 6295) {
+        // If moving down, check if gaze is also down
+        return -row.GazeDirection_Y > GAZING_ANGLE_THRESHOLD_COS;
+    } 
+    // If moving down below the threshold and Y is less than 6295
+    else if (row.User_velocity_Y < -WALK_STAY_THRESHOLD && row.User_Y < 6295) {
+        return false;
+    }
+
+    // If moving up and Y is less than 8150
+    if (row.User_velocity_Y > 0 && row.User_Y < 8150) {
+        // If moving up, check if gaze is also up
+        return row.GazeDirection_Y > GAZING_ANGLE_THRESHOLD_COS;
+    } 
+    // If moving up above the threshold and Y is greater than 8150
+    else if (row.User_velocity_Y > WALK_STAY_THRESHOLD && row.User_Y > 8150) {
+        return false;
+    }
+
+    // Assume they are facing the road if they are stationary
+    return true;
+}
+
+
+// Function to calculate the distance to the closest station
+std::tuple<int, double, double, double> generate_distance_to_closest_station_helper(const Row& row) {
+    double mindis = std::numeric_limits<double>::max();
+    int closest_station = -1;
+    double mindis_X = 0.0, mindis_Y = 0.0;
+
+    // Iterate over stations to find the closest one
+    for (const auto& station : stations) {
+        double station_X = station.second.first;
+        double station_Y = station.second.second;
+
+        // Calculate the distance between the user and the station
+        double dis = std::sqrt((row.User_X - station_X) * (row.User_X - station_X) +
+                               (row.User_Y - station_Y) * (row.User_Y - station_Y));
+
+        // Update minimum distance and closest station if a closer one is found
+        if (dis < mindis) {
+            mindis = dis;
+            closest_station = station.first;
+            mindis_X = std::abs(row.User_X - station_X);
+            mindis_Y = std::abs(row.User_Y - station_Y);
+        }
+    }
+
+    // Return the closest station, minimum distance, and X, Y distance components
+    return std::make_tuple(closest_station, mindis, mindis_X, mindis_Y);
+}
+
 Features extract_features(const deque<Row>& rows, size_t index) {
     const Row& row = rows[index];
     Features features;
 
+    // Copy raw features
+    features.GazeDirection_X = row.GazeDirection_X;
+    features.GazeDirection_Y = row.GazeDirection_Y;
+    features.AGV_X = row.AGV_X;
+    features.AGV_Y = row.AGV_Y;
+    features.User_X = row.User_X;
+    features.User_Y = row.User_Y;
+    features.TimestampID = row.TimestampID;
+
     // Calculate distances
     features.AGV_distance_X = abs(row.User_X - row.AGV_X);
     features.AGV_distance_Y = abs(row.User_Y - row.AGV_Y);
+
+    // Normalized gaze direction
+    double gaze_direction_length = sqrt(row.GazeDirection_X * row.GazeDirection_X + row.GazeDirection_Y * row.GazeDirection_Y);
+    features.GazeDirection_X /= gaze_direction_length;
+    features.GazeDirection_Y /= gaze_direction_length;
 
     // Calculate speeds and velocities using previous row data
     if (index > 0) {
@@ -93,77 +238,126 @@ Features extract_features(const deque<Row>& rows, size_t index) {
         features.User_velocity_X = 0.0;
         features.User_velocity_Y = 0.0;
     }
+    features.user_agv_direction_cos = get_user_agv_direction_cos(row);
 
-    // Wait time calculation (simplified as an example) 
-    //TODO: Can we use the WALK_STAY_THRESHOLD here instead of the 0.1?
-    //TODO: Understand this...
-    features.Wait_time = (features.User_speed < 0.1) ? (index > 0 ? rows[index - 1].TimestampID : 0) : 0;
-
+    //fixed: Can we use the WALK_STAY_THRESHOLD here instead of the 0.1?
     // Most close station and intent to cross
-    //TODO: Is this the station that is closest to the user's gaze direction?
-    auto station_direction = get_most_close_station_direction(row);
+    //fixed: Is this the station that is closest to the user's gaze direction?
+    auto close_station_res = get_most_close_station_direction(row);
+    auto station_direction = std::make_pair(std::get<0>(close_station_res), std::get<1>(close_station_res));
+    features.gazing_station_direction_cos = std::get<0>(close_station_res);
     features.Gazing_station = station_direction.second;
+    features.closest_station_dir_X = std::get<2>(close_station_res);
+    features.closest_station_dir_Y = std::get<3>(close_station_res);
 
-    //TODO: Include another constant in constant.hpp for this instead of using a random float here...
-    features.intent_to_cross = get_user_agv_direction_cos(row) > 0.5;
+    //fixed: Include another constant in constant.hpp for this instead of using a random float here...
+    features.intent_to_cross = intent_to_cross_helper(features);
 
     // Possible interaction (as an example)
-    //TODO: Include another constant in constant.hpp for this instead of using a random float here...
-    //TODO: Not sure how this corresponds to possible interaction.
-    //TODO: Please explain this feature
-    features.possible_interaction = station_direction.first > 0.5;
+    //fixed: Include another constant in constant.hpp for this instead of using a random float here...
+    //fixed: Not sure how this corresponds to possible interaction.
+    //fixed: Please explain this feature
+    features.possible_interaction = possible_interaction_helper(features, COLLISION_THRESHOLD);
 
     // Example features (need more context to compute correctly)
-    // TODO: These features have not been computed. Are we not using them anymore?
-    features.facing_along_sidewalk = false;
-    features.facing_to_road = false;
-    features.On_sidewalks = false;
-    features.On_road = false;
+    // fixed: These features have not been computed. Are we not using them anymore?
+    features.facing_along_sidewalk = features.GazeDirection_X > GAZING_ANGLE_THRESHOLD_COS;
+    features.facing_to_road = facing_road_helper(features);
+    // features.On_sidewalks = false; updated below
+    // features.On_road = false; updated below
 
-    // TODO: Is the gazing station always the closest station?
-    features.closest_station = features.Gazing_station;
-
-    // TODO: This is incorrect
-    features.distance_to_closest_station = features.AGV_distance_X; // Simplified
-    features.distance_to_closest_station_X = features.AGV_distance_X;
-    features.distance_to_closest_station_Y = features.AGV_distance_Y;
+    // fixed: Is the gazing station always the closest station?
+    auto closest_station_res = generate_distance_to_closest_station_helper(row);
+    features.closest_station = std::get<0>(closest_station_res);
+    features.distance_to_closest_station = std::get<1>(closest_station_res);
+    features.distance_to_closest_station_X = std::get<2>(closest_station_res);
+    features.distance_to_closest_station_Y = std::get<3>(closest_station_res);
 
     //TODO: Include another constant in constant.hpp for this instead of using a random float here...
-    features.looking_at_AGV = get_user_agv_direction_cos(row) > 0.5;
-
-    // Start and end station coordinates (as an example, hard-coded)
-    // TODO: These also seem incorrect. Are we not using these features?
-    features.start_station_X = 0.0;
-    features.start_station_Y = 0.0;
-    features.end_station_X = 100.0;
-    features.end_station_Y = 100.0;
-    features.distance_from_start_station_X = row.User_X - features.start_station_X;
-    features.distance_from_start_station_Y = row.User_Y - features.start_station_Y;
-    features.distance_from_end_station_X = row.User_X - features.end_station_X;
-    features.distance_from_end_station_Y = row.User_Y - features.end_station_Y;
-    features.facing_start_station = false;
-    features.facing_end_station = false;
+    features.looking_at_AGV = features.user_agv_direction_cos > GAZING_ANGLE_THRESHOLD_COS;
 
     // TODO: This statement also feels dubious
-    features.looking_at_closest_station = features.looking_at_AGV;
-
-    // Copy raw features
-    features.GazeDirection_X = row.GazeDirection_X;
-    features.GazeDirection_Y = row.GazeDirection_Y;
-    features.AGV_X = row.AGV_X;
-    features.AGV_Y = row.AGV_Y;
-    features.User_X = row.User_X;
-    features.User_Y = row.User_Y;
-    features.TimestampID = row.TimestampID;
+    features.looking_at_closest_station = features.gazing_station_direction_cos > GAZING_ANGLE_THRESHOLD_COS;
 
     return features;
 }
+
+
+vector<Features> generate_wait_time(vector<Features>& rows, double H1 = 0.2, double H2 = 0.1, double THRESHOLD_ANGLE = 30, double frame_rate = 30) {
+    
+    // Constants and data
+    const double ERROR_RANGE = 50;  // Replace with actual error range
+    double threshold_COSINE = cos(THRESHOLD_ANGLE * M_PI / 180);  // Convert angle to radians and find cosine
+
+    bool begin_wait_Flag = false;
+    bool AGV_passed_Flag = false;
+    size_t begin_wait_Timestamp = 0;
+
+    for (size_t index = 0; index < rows.size(); ++index) {
+        Features& row = rows[index];  // Get the current row
+
+        // If AGV already passed, skip this row
+        if (AGV_passed_Flag) {
+            continue;
+        }
+
+        // Check if the user is on the sidewalk
+        bool on_sidewalk = (row.User_Y > 8150 - ERROR_RANGE && row.User_Y < 8400 + ERROR_RANGE) || 
+                           (row.User_Y > 6045 - ERROR_RANGE && row.User_Y < 6295 + ERROR_RANGE);
+
+        // Check if the user is on the road
+        bool on_road = (row.User_Y < 8150 - ERROR_RANGE / 2) && (row.User_Y > 6295 + ERROR_RANGE / 2);
+
+        rows[index].On_sidewalks = on_sidewalk;
+        rows[index].On_road = on_road;
+        // Check if user is looking at AGV using angle and cosine threshold
+        // tuple<double, double> target_station_pos = stations[User_trajectory[stoi(row.AGV_name.substr(3))][1]];
+        // tuple<double, double> user_target_station_dir = get_direction_normalized(make_tuple(row.User_X, row.User_Y), target_station_pos);
+
+        tuple<double, double> user_agv_dir = get_direction_normalized(make_tuple(row.User_X, row.User_Y), make_tuple(row.AGV_X, row.AGV_Y));
+
+        double user_target_station_angle = get_angle_between_normalized_vectors(make_tuple(row.GazeDirection_X, row.GazeDirection_Y), user_agv_dir);
+        double user_agv_angle = get_angle_between_normalized_vectors(make_tuple(row.GazeDirection_X, row.GazeDirection_Y), make_tuple(row.closest_station_dir_X, row.closest_station_dir_Y));
+
+        bool looking_at_AGV = (user_target_station_angle > threshold_COSINE || user_agv_angle > threshold_COSINE);
+
+        // Check if user is in a waiting state
+        bool wait_state = (sqrt(row.User_speed_X * row.User_speed_X + row.User_speed_Y * row.User_speed_Y) < H1);
+
+        // Begin waiting state
+        if (!begin_wait_Flag) {  // User is walking
+            if (wait_state && on_sidewalk && !looking_at_AGV) {
+                begin_wait_Flag = true;
+                begin_wait_Timestamp = (index > 1) ? index - 1 : 1;  // Use the previous index or first
+                row.Wait_time = (index - begin_wait_Timestamp) / frame_rate;
+            } else {
+                continue;
+            }
+        } else {  // User is in a waiting state
+            if (sqrt(row.User_speed_X * row.User_speed_X + row.User_speed_Y * row.User_speed_Y) <= H2) {  // Still waiting
+                row.Wait_time = (index - begin_wait_Timestamp) / frame_rate;
+            } else {  // End waiting state
+                begin_wait_Flag = false;
+                begin_wait_Timestamp = 0;
+                row.Wait_time = 0;
+                AGV_passed_Flag = true;  // AGV has passed
+            }
+        }
+    }
+
+    // Assign the extracted features to the result (convert deque to vector or return features in some form)
+    return rows;
+}
+
+
 
 vector<Features> process_rows(const deque<Row>& rows) {
     vector<Features> features_list;
     for (size_t i = 0; i < rows.size(); ++i) {
         features_list.push_back(extract_features(rows, i));
     }
+    // for wait time
+    features_list = generate_wait_time(features_list);
     return features_list;
 }
 
