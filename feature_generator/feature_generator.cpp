@@ -319,7 +319,7 @@ vector<Features> generate_wait_time(vector<Features>& rows, double H1 = 0.2, dou
         double user_target_station_angle = get_angle_between_normalized_vectors(make_tuple(row.GazeDirection_X, row.GazeDirection_Y), user_agv_dir);
         double user_agv_angle = get_angle_between_normalized_vectors(make_tuple(row.GazeDirection_X, row.GazeDirection_Y), make_tuple(row.closest_station_dir_X, row.closest_station_dir_Y));
 
-        bool looking_at_AGV = (user_target_station_angle > threshold_COSINE || user_agv_angle > threshold_COSINE);
+        bool looking_at_AGV = (cos(user_target_station_angle) > threshold_COSINE || cos(user_agv_angle) > threshold_COSINE);
 
         // Check if user is in a waiting state
         bool wait_state = (sqrt(row.User_speed_X * row.User_speed_X + row.User_speed_Y * row.User_speed_Y) < H1);
