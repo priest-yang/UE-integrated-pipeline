@@ -12,13 +12,16 @@
 #include <numeric> 
 #include <argparse.hpp>
 #include <constant.hpp>
+#include <constant.hpp>
 
 using namespace std;
 
 pair<double, double> get_direction_normalized(const tuple<double, double>& start, const tuple<double, double>& end) {
+pair<double, double> get_direction_normalized(const tuple<double, double>& start, const tuple<double, double>& end) {
     double x = get<0>(end) - get<0>(start);
     double y = get<1>(end) - get<1>(start);
     double length = sqrt(x * x + y * y);
+    return {x / length, y / length};
     return {x / length, y / length};
 }
 
@@ -29,8 +32,21 @@ double get_angle_between_normalized_vectors(const tuple<double, double>& v1, con
 
 // fixed: Does this function compute the closest station or the station that matches the gaze direction most closely?
 std::tuple<double, int, double, double> get_most_close_station_direction(const Row& row) {
+// fixed: Does this function compute the closest station or the station that matches the gaze direction most closely?
+std::tuple<double, int, double, double> get_most_close_station_direction(const Row& row) {
     double max_cos = -1;
     int most_common_station = -1;
+    double closest_station_X;
+    double closest_station_Y;
+    for (const auto& [station, position] : stations) {
+        // Get normalized direction vector
+        std::pair<double, double> direction_normalized = get_direction_normalized({row.User_X, row.User_Y}, position);
+
+        // Calculate cosine of the angle between gaze direction and station direction
+        double cosine_gaze_direction = row.GazeDirection_X * direction_normalized.first + row.GazeDirection_Y * direction_normalized.second;
+
+        
+        // Update max cosine and station if current cosine is greater
     double closest_station_X;
     double closest_station_Y;
     for (const auto& [station, position] : stations) {
@@ -47,13 +63,19 @@ std::tuple<double, int, double, double> get_most_close_station_direction(const R
             most_common_station = station;
             closest_station_X = direction_normalized.first;
             closest_station_Y = direction_normalized.second;
+            most_common_station = station;
+            closest_station_X = direction_normalized.first;
+            closest_station_Y = direction_normalized.second;
         }
     }
+
+    return { max_cos, most_common_station, closest_station_X, closest_station_Y };
 
     return { max_cos, most_common_station, closest_station_X, closest_station_Y };
 }
 
 double get_user_agv_direction_cos(const Row& row) {
+    pair<double, double> direction_normalized = get_direction_normalized(
     pair<double, double> direction_normalized = get_direction_normalized(
         make_tuple(row.User_X, row.User_Y), make_tuple(row.AGV_X, row.AGV_Y));
     return row.GazeDirection_X * get<0>(direction_normalized) +
@@ -210,9 +232,23 @@ Features extract_features(const deque<Row>& rows, size_t index) {
     features.User_Y = row.User_Y;
     features.TimestampID = row.TimestampID;
 
+    // Copy raw features
+    features.GazeDirection_X = row.GazeDirection_X;
+    features.GazeDirection_Y = row.GazeDirection_Y;
+    features.AGV_X = row.AGV_X;
+    features.AGV_Y = row.AGV_Y;
+    features.User_X = row.User_X;
+    features.User_Y = row.User_Y;
+    features.TimestampID = row.TimestampID;
+
     // Calculate distances
     features.AGV_distance_X = abs(row.User_X - row.AGV_X);
     features.AGV_distance_Y = abs(row.User_Y - row.AGV_Y);
+
+    // Normalized gaze direction
+    double gaze_direction_length = sqrt(row.GazeDirection_X * row.GazeDirection_X + row.GazeDirection_Y * row.GazeDirection_Y);
+    features.GazeDirection_X /= gaze_direction_length;
+    features.GazeDirection_Y /= gaze_direction_length;
 
     // Normalized gaze direction
     double gaze_direction_length = sqrt(row.GazeDirection_X * row.GazeDirection_X + row.GazeDirection_Y * row.GazeDirection_Y);
@@ -245,7 +281,14 @@ Features extract_features(const deque<Row>& rows, size_t index) {
     features.user_agv_direction_cos = get_user_agv_direction_cos(row);
 
     //fixed: Can we use the WALK_STAY_THRESHOLD here instead of the 0.1?
+    features.user_agv_direction_cos = get_user_agv_direction_cos(row);
+
+    //fixed: Can we use the WALK_STAY_THRESHOLD here instead of the 0.1?
     // Most close station and intent to cross
+    //fixed: Is this the station that is closest to the user's gaze direction?
+    auto close_station_res = get_most_close_station_direction(row);
+    auto station_direction = std::make_pair(std::get<0>(close_station_res), std::get<1>(close_station_res));
+    features.gazing_station_direction_cos = std::get<0>(close_station_res);
     //fixed: Is this the station that is closest to the user's gaze direction?
     auto close_station_res = get_most_close_station_direction(row);
     auto station_direction = std::make_pair(std::get<0>(close_station_res), std::get<1>(close_station_res));
@@ -253,7 +296,11 @@ Features extract_features(const deque<Row>& rows, size_t index) {
     features.Gazing_station = station_direction.second;
     features.closest_station_dir_X = std::get<2>(close_station_res);
     features.closest_station_dir_Y = std::get<3>(close_station_res);
+    features.closest_station_dir_X = std::get<2>(close_station_res);
+    features.closest_station_dir_Y = std::get<3>(close_station_res);
 
+    //fixed: Include another constant in constant.hpp for this instead of using a random float here...
+    features.intent_to_cross = intent_to_cross_helper(features);
     //fixed: Include another constant in constant.hpp for this instead of using a random float here...
     features.intent_to_cross = intent_to_cross_helper(features);
 
@@ -262,8 +309,17 @@ Features extract_features(const deque<Row>& rows, size_t index) {
     //fixed: Not sure how this corresponds to possible interaction.
     //fixed: Please explain this feature
     features.possible_interaction = possible_interaction_helper(features, COLLISION_THRESHOLD);
+    //fixed: Include another constant in constant.hpp for this instead of using a random float here...
+    //fixed: Not sure how this corresponds to possible interaction.
+    //fixed: Please explain this feature
+    features.possible_interaction = possible_interaction_helper(features, COLLISION_THRESHOLD);
 
     // Example features (need more context to compute correctly)
+    // fixed: These features have not been computed. Are we not using them anymore?
+    features.facing_along_sidewalk = features.GazeDirection_X > GAZING_ANGLE_THRESHOLD_COS;
+    features.facing_to_road = facing_road_helper(features);
+    // features.On_sidewalks = false; updated below
+    // features.On_road = false; updated below
     // fixed: These features have not been computed. Are we not using them anymore?
     features.facing_along_sidewalk = features.GazeDirection_X > GAZING_ANGLE_THRESHOLD_COS;
     features.facing_to_road = facing_road_helper(features);
@@ -276,11 +332,19 @@ Features extract_features(const deque<Row>& rows, size_t index) {
     features.distance_to_closest_station = std::get<1>(closest_station_res);
     features.distance_to_closest_station_X = std::get<2>(closest_station_res);
     features.distance_to_closest_station_Y = std::get<3>(closest_station_res);
+    // fixed: Is the gazing station always the closest station?
+    auto closest_station_res = generate_distance_to_closest_station_helper(row);
+    features.closest_station = std::get<0>(closest_station_res);
+    features.distance_to_closest_station = std::get<1>(closest_station_res);
+    features.distance_to_closest_station_X = std::get<2>(closest_station_res);
+    features.distance_to_closest_station_Y = std::get<3>(closest_station_res);
 
     //TODO: Include another constant in constant.hpp for this instead of using a random float here...
     features.looking_at_AGV = features.user_agv_direction_cos > GAZING_ANGLE_THRESHOLD_COS;
+    features.looking_at_AGV = features.user_agv_direction_cos > GAZING_ANGLE_THRESHOLD_COS;
 
     // TODO: This statement also feels dubious
+    features.looking_at_closest_station = features.gazing_station_direction_cos > GAZING_ANGLE_THRESHOLD_COS;
     features.looking_at_closest_station = features.gazing_station_direction_cos > GAZING_ANGLE_THRESHOLD_COS;
 
     return features;
@@ -363,6 +427,8 @@ vector<Features> process_rows(const deque<Row>& rows) {
     for (size_t i = 0; i < rows.size(); ++i) {
         features_list.push_back(extract_features(rows, i));
     }
+    // for wait time
+    features_list = generate_wait_time(features_list);
     // for wait time
     features_list = generate_wait_time(features_list);
     return features_list;

@@ -3,6 +3,8 @@ main
 tra_pred_model/libtorch/*
 !tra_pred_model/libtorch/README.md
 
+tra_pred_model/onnxruntime/*
+!tra_pred_model/onnxruntime/README.md
 
 .DS_Store
 data/PandasData/Modified/*

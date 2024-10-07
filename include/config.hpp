@@ -66,6 +66,8 @@ struct Features {
     double Wait_time;
     bool intent_to_cross;
     int Gazing_station;
+    double gazing_station_direction_cos;
+    double user_agv_direction_cos; 
     bool possible_interaction;
     bool facing_along_sidewalk;
     bool facing_to_road;
@@ -75,6 +77,8 @@ struct Features {
     double distance_to_closest_station;
     double distance_to_closest_station_X;
     double distance_to_closest_station_Y;
+    double closest_station_dir_X; 
+    double closest_station_dir_Y;
     bool looking_at_AGV;
     double start_station_X;
     double start_station_Y;

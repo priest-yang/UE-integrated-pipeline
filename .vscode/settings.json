@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.tex": "latex",
         "valarray": "cpp",
         "cctype": "cpp",
         "clocale": "cpp",
@@ -87,6 +88,18 @@
         "*.def": "cpp",
         "*.inc": "cpp",
         "version": "cpp",
-        "charconv": "cpp"
+        "charconv": "cpp",
+        "__bit_reference": "cpp",
+        "__bits": "cpp",
+        "__config": "cpp",
+        "__debug": "cpp",
+        "__errc": "cpp",
+        "__mutex_base": "cpp",
+        "__node_handle": "cpp",
+        "__tuple": "cpp",
+        "__verbose_abort": "cpp",
+        "ios": "cpp",
+        "__string": "cpp",
+        "span": "cpp"
     }
 }
