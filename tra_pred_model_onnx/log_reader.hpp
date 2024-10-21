@@ -16,12 +16,14 @@ namespace fs = std::filesystem;
 class LogReader {
 private:
     std::string log_dir;
-    std::deque<std::vector<float>> logs_deque;  // To store the most recent 30 logs
+    std::deque<std::vector<float>> logs_deque;  // To store the most recent logs
+    std::deque<std::string> file_buffer;        // Buffer for tracking log file names
     std::mutex data_mutex;  // Mutex to protect shared data access
     bool new_data_flag;     // Flag to indicate if the newest data has been used
     std::thread reader_thread;
     bool stop_thread;
-    int input_size;
+    int input_size;         // Maximum number of logs to keep in the deque
+    int newest_log_index;   // Keep track of the index of the newest log
 
     // Internal method to read a single CSV log file
     std::vector<float> read_log_file(const std::string& filename) {
@@ -44,45 +46,62 @@ private:
         return data;
     }
 
+    // Check if the next log file exists (e.g., log_1.csv, log_2.csv, etc.)
+    bool is_new_log_available() {
+        std::string new_log_file = log_dir + "/log_" + std::to_string(newest_log_index) + ".csv";
+        return fs::exists(new_log_file);
+    }
+
     // Thread method to monitor logs
     void monitor_logs() {
         while (!stop_thread) {
-            std::vector<fs::path> log_files;
+            // Check if a new log file is available
+            if (is_new_log_available()) {
+                // Lock the mutex before modifying shared data
+                std::lock_guard<std::mutex> lock(data_mutex);
 
-            // Get all CSV files in the log directory
-            for (const auto& entry : fs::directory_iterator(log_dir)) {
-                if (entry.path().extension() == ".csv") {
-                    log_files.push_back(entry.path());
+                // Construct the file name for the new log
+                std::string new_log_file = log_dir + "/log_" + std::to_string(newest_log_index) + ".csv";
+
+                // Read the new log file and add to the deque
+                std::vector<float> log_data = read_log_file(new_log_file);
+                logs_deque.push_back(log_data);
+                file_buffer.push_back(new_log_file);  // Track the log file in the buffer
+
+                // Increment the newest log index
+                newest_log_index++;
+
+                // Maintain fixed buffer size by popping the oldest log when necessary
+                if (logs_deque.size() > input_size) {
+                    logs_deque.pop_front();
+                    file_buffer.pop_front();  // Also remove from file buffer
+                }
+
+                // Set the new data flag
+                if (logs_deque.size() == input_size) {
+                    new_data_flag = true;
                 }
             }
 
-            // Sort log files by modification time (most recent first)
-            std::sort(log_files.begin(), log_files.end(), [](const fs::path& a, const fs::path& b) {
-                return fs::last_write_time(a) > fs::last_write_time(b);
-            });
-
-            // Lock the mutex before modifying shared data
-            std::lock_guard<std::mutex> lock(data_mutex);
-
-            // Clear the deque and track only the most recent 30 logs
-            logs_deque.clear();
-            for (size_t i = 0; i < std::min(log_files.size(), size_t(input_size)); ++i) {
-                std::vector<float> log_data = read_log_file(log_files[i].string());
-                logs_deque.push_back(log_data);
-            }
-
-            // Set the new_data_flag to true indicating fresh data is available and length of logs_deque is not zero
-            if (logs_deque.size() == input_size) {
-                new_data_flag = true;
-            }
-            // Sleep for a while before checking for new logs
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            // Sleep for a while before checking again
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     }
 
 public:
     // Constructor
-    LogReader(const std::string& directory) : log_dir(directory), new_data_flag(false), stop_thread(false), input_size(30) {
+    LogReader(const std::string& directory) : log_dir(directory), new_data_flag(false), stop_thread(false), input_size(30), newest_log_index(0) {
+        // Check for existing logs and update newest_log_index
+        // for (int i = 0; ; ++i) {
+        //     std::string log_file = log_dir + "/log_" + std::to_string(i) + ".csv";
+        //     if (fs::exists(log_file)) {
+        //         newest_log_index = i + 1;  // Set next expected log index
+        //     } else {
+        //         break;
+        //     }
+        // }
+        newest_log_index = 0; 
+
         // Start the thread for monitoring logs
         reader_thread = std::thread(&LogReader::monitor_logs, this);
     }
@@ -110,6 +129,8 @@ public:
 };
 
 #endif
+
+
 
 // int main() {
 //     // Specify the log directory
