@@ -6,7 +6,7 @@
 #include <thread>
 #include "argparse.hpp"
 #include <onnxruntime/core/session/onnxruntime_cxx_api.h>
-
+#include "log_reader.hpp"
 
 class ModelRunner {
 private:
@@ -15,16 +15,19 @@ private:
     Ort::Session session;
     std::vector<std::string> input_node_names;
     std::vector<std::string> output_node_names;
-    std::string filename;
     int feature_dim;
     std::deque<std::vector<float>> buffer;
     size_t capacity;
     int cnt = 0;
+    LogReader log_reader;
+    int processed_lines = 0;
+    std::chrono::duration<double> elapsed;
+    
     
 
 public:
-    ModelRunner(const std::string& model_path, const std::string& filename, int feature_dim, size_t capacity)
-        : filename(filename), feature_dim(feature_dim), capacity(capacity),
+    ModelRunner(const std::string& model_path, int feature_dim, size_t capacity, const std::string& log_dir)
+        : feature_dim(feature_dim), capacity(capacity), log_reader(log_dir),
           env(ORT_LOGGING_LEVEL_WARNING, "ModelRunner"),
           session_options(), session(nullptr) {
         // Set session options if needed
@@ -58,27 +61,18 @@ public:
         }
     }
 
-    std::vector<float> convertLineToVector(const std::string& line) {
-        std::vector<float> vec(feature_dim, 0.0f);
-        std::stringstream ss(line);
-        std::string item;
-        int index = 0;
-        while (std::getline(ss, item, ',') && index < feature_dim) {
-            try {
-                vec[index++] = std::stof(item);
-            } catch (const std::exception& e) {
-                std::cerr << "Parsing error: " << e.what() << " in line: " << line << std::endl;
-                vec[index++] = 0.0f; // Handle error by setting to zero
-            }
-        }
-        return vec;
-    }
-
     void feedModel() {
-        if (buffer.size() < capacity) return;
+        printf("Checking for new data\n");
+        if (!log_reader.has_new_data()) return;
+        printf("New data available\n");
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        size_t batch_size = 1;  // Add a batch dimension of 1
 
-        size_t batch_size = buffer.size();
-        size_t input_tensor_size = batch_size * feature_dim;
+        buffer = log_reader._newest_data();
+
+        size_t sequence_length = buffer.size();
+        size_t input_tensor_size = batch_size * sequence_length * feature_dim;
         std::vector<float> input_tensor_values;
         input_tensor_values.reserve(input_tensor_size);
 
@@ -86,7 +80,8 @@ public:
             input_tensor_values.insert(input_tensor_values.end(), vec.begin(), vec.end());
         }
 
-        std::vector<int64_t> input_shape = {static_cast<int64_t>(batch_size), feature_dim};
+        // Correct input shape must be [batch_size, sequence_length, feature_dim]
+        std::vector<int64_t> input_shape = {static_cast<int64_t>(batch_size), static_cast<int64_t>(sequence_length), feature_dim};
 
         Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
@@ -96,7 +91,6 @@ public:
         const char* input_names[] = {input_node_names[0].c_str()};
         const char* output_names[] = {output_node_names[0].c_str()};
 
-        // Run the model
         auto output_tensors = session.Run(
             Ort::RunOptions{nullptr}, input_names, &input_tensor, 1, output_names, 1);
 
@@ -119,6 +113,11 @@ public:
             std::cout << output_data[i] << " ";
         }
         std::cout << std::endl;
+
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_this = end - start;
+        this->elapsed += elapsed_this;
+        this->processed_lines += 1;
     }
 
     void updateBuffer(const std::vector<float>& newVector) {
@@ -128,32 +127,27 @@ public:
         buffer.push_back(newVector);  // Add the new vector to the buffer
     }
 
-    void processFile(const std::string& spec_filename) {
+    void processFile() {
         auto start = std::chrono::high_resolution_clock::now();
 
-        std::string effectiveFilename = spec_filename.empty() ? this->filename : spec_filename;
-        std::cout << "Processing file: " << effectiveFilename << std::endl;
-        std::ifstream file(effectiveFilename);
-        std::string line;
-        if (std::getline(file, line)) {} // Optionally handle header
-
-        while (std::getline(file, line)) {
-            auto vec = convertLineToVector(line);
-            updateBuffer(vec);    // Update the buffer with each new line
-            feedModel();          // Run the model on every new line
+        // feedModel();          // Run the model on every new line
+        while(true) {
+            feedModel();
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
-        std::cout << "\n\n";
-        std::cout << "Elapsed time: " << elapsed.count() << " seconds." << std::endl;
-        std::cout << "Processed " << this->cnt << " lines." << std::endl;
-        std::cout << "Speed: " << this->cnt / elapsed.count() << " lines per second.\n\n" << std::endl;
+        
+        std::cout << "\n\n\n";
+        std::cout << "Elapsed time: " << this->elapsed.count() << " seconds." << std::endl;
+        std::cout << "Processed " << this->processed_lines << " lines." << std::endl;
+        std::cout << "Speed: " << this->processed_lines / this->elapsed.count() << " lines per second.\n\n" << std::endl;
     }
 
     void start(const std::string& filename = "") {
         this->cnt = 0;
-        std::thread worker(&ModelRunner::processFile, this, filename);
+        std::thread worker(&ModelRunner::processFile, this);
         worker.join();
     }
 };
@@ -161,13 +155,13 @@ public:
 int main(int argc, char** argv) {
     argparse::ArgumentParser program("FAM Benchmarking Program");
 
-    // Add arguments
-    program.add_argument("-f", "--file_path")
-        .help("Path to the CSV file containing feature records")
-        .default_value(std::string("data/demo/feature_model/0.csv"));
+    // // Add arguments
+    // program.add_argument("-f", "--file_path")
+    //     .help("Path to the CSV file containing feature records")
+    //     .default_value(std::string("data/demo/feature_model/0.csv"));
 
-    program.add_argument("-b", "--batch_size")
-        .help("Size of bach for processing")
+    program.add_argument("-s", "--sequence_length")
+        .help("sqeuence length")
         .default_value(40)
         .scan<'i', size_t>(); // Scanning as size_t; 
 
@@ -180,6 +174,10 @@ int main(int argc, char** argv) {
         .default_value(32)
         .scan<'i', int>();
 
+    program.add_argument("--log_dir")
+        .help("Path to the directory containing log files")
+        .default_value(std::string("logs"));
+
     try {
         program.parse_args(argc, argv);
     } catch (const std::runtime_error& err) {
@@ -189,18 +187,21 @@ int main(int argc, char** argv) {
     }
 
     // Get the file path and buffer size from the arguments
-    std::string file_path = program.get<std::string>("-f");
-    const size_t batch_size = program.get<size_t>("-b");
+    // std::string file_path = program.get<std::string>("-f");
+    const size_t sequence_length = program.get<size_t>("-s");
     std::string model_path = program.get<std::string>("-m");
     int feature_dim = program.get<int>("--feature_dim");
+    std::string log_dir = program.get<std::string>("--log_dir");
+    // LogReader log_reader(log_dir);
+
 
 
     ModelRunner runner(model_path,
-                       file_path,
                        feature_dim, // Feature dimension
-                       batch_size); // Capacity or batch size
+                       sequence_length, 
+                       log_dir); // Capacity or batch size
 
-    runner.start(file_path);
+    runner.start();
     return 0;
 }
 
