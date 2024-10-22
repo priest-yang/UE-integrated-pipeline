@@ -1,5 +1,6 @@
 main
 
+log_*.csv
 tra_pred_model/libtorch/*
 !tra_pred_model/libtorch/README.md
 

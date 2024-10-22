@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Run with Arguments",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/main",
+        "args": [
+          "--file_path",
+          "${workspaceFolder}/data/demo/feature_model/0.csv",
+          "--batch_size",
+          "30",
+          "--model_path",
+          "${workspaceFolder}/model/model.onnx",
+          "--feature_dim",
+          "32"
+        ],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [
+          {
+            "name": "DYLD_LIBRARY_PATH",
+            "value": "/Users/shawn/Documents/UMSI/Boeing_Project/onnxruntime/build/MacOS/Release/:${env:DYLD_LIBRARY_PATH}"
+          }
+        ],
+        "externalConsole": false,
+        "MIMode": "lldb",
+        "preLaunchTask": "Build with ONNX Runtime"
+      }
+    ]
+  }
+  
